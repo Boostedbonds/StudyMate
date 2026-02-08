@@ -1,49 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import AccessGate from "./components/AccessGate";
-import StudentGate from "./components/StudentGate";
-import ProfileGate from "./components/ProfileGate";
-import ModeSelector, { Mode } from "./components/ModeSelector";
-import Header from "./components/Header";
+import { useState } from "react";
+import ModeSelector from "./components/ModeSelector";
 
-import { hasAccess } from "./lib/session";
-import { getStudent } from "./lib/student";
-import { getActiveProfile } from "./lib/profiles";
+const PARENT_CODE = "0330";
 
-import TeacherMode from "./components/modes/TeacherMode";
-import ExaminerMode from "./components/modes/ExaminerMode";
-import OralMode from "./components/modes/OralMode";
-import ProgressMode from "./components/modes/ProgressMode";
+export default function HomePage() {
+  const [code, setCode] = useState("");
+  const [authorized, setAuthorized] = useState(false);
+  const [error, setError] = useState("");
 
-export default function Home() {
-  const [ready, setReady] = useState(false);
-  const [student, setStudent] = useState(false);
-  const [profile, setProfile] = useState(false);
-  const [mode, setMode] = useState<Mode | null>(null);
+  function handleEnter() {
+    if (code === PARENT_CODE) {
+      setAuthorized(true);
+      setError("");
+    } else {
+      setError("Invalid access code");
+    }
+  }
 
-  useEffect(() => {
-    setReady(hasAccess());
-    setStudent(!!getStudent());
-    setProfile(!!getActiveProfile());
-  }, []);
+  if (!authorized) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "linear-gradient(135deg,#1e3a8a,#059669)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            background: "#fff",
+            padding: 32,
+            borderRadius: 12,
+            width: 380,
+            textAlign: "center",
+          }}
+        >
+          <h1 style={{ fontSize: 28, marginBottom: 8 }}>StudyMate</h1>
+          <p style={{ marginBottom: 20 }}>CBSE Class 9 Learning Platform</p>
 
-  if (!ready) return <AccessGate onSuccess={() => setReady(true)} />;
+          <div
+            style={{
+              background: "#eef2ff",
+              padding: 12,
+              borderRadius: 8,
+              marginBottom: 12,
+              fontWeight: 500,
+            }}
+          >
+            Parent Access Control
+          </div>
 
-  if (!student) return <StudentGate onDone={() => setStudent(true)} />;
+          <input
+            type="password"
+            placeholder="Access Code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 10,
+              marginBottom: 12,
+            }}
+          />
 
-  if (!profile) return <ProfileGate onDone={() => setProfile(true)} />;
+          {error && (
+            <div style={{ color: "red", marginBottom: 8 }}>{error}</div>
+          )}
 
-  return (
-    <>
-      <Header />
+          <button
+            onClick={handleEnter}
+            style={{
+              width: "100%",
+              padding: 12,
+              background: "#1e3a8a",
+              color: "#fff",
+              borderRadius: 8,
+              border: "none",
+              fontSize: 16,
+              cursor: "pointer",
+            }}
+          >
+            Enter StudyMate
+          </button>
 
-      {!mode && <ModeSelector onSelect={setMode} />}
+          <div
+            style={{
+              marginTop: 16,
+              background: "#fef9c3",
+              padding: 10,
+              borderRadius: 8,
+              fontSize: 12,
+            }}
+          >
+            This platform requires parent authorization for access.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-      {mode === "teacher" && <TeacherMode />}
-      {mode === "examiner" && <ExaminerMode />}
-      {mode === "oral" && <OralMode />}
-      {mode === "progress" && <ProgressMode />}
-    </>
-  );
+  return <ModeSelector />;
 }
