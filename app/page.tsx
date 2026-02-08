@@ -10,7 +10,9 @@ export default function HomePage() {
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState("");
 
-  function handleEnter() {
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
     if (code === PARENT_CODE) {
       setAuthorized(true);
       setError("");
@@ -30,25 +32,28 @@ export default function HomePage() {
           justifyContent: "center",
         }}
       >
-        <div
+        <form
+          onSubmit={handleSubmit}
           style={{
-            background: "#fff",
-            padding: 32,
-            borderRadius: 12,
-            width: 380,
+            background: "#ffffff",
+            padding: "48px 42px",
+            borderRadius: 18,
+            width: 420,
             textAlign: "center",
           }}
         >
-          <h1 style={{ fontSize: 28, marginBottom: 8 }}>StudyMate</h1>
-          <p style={{ marginBottom: 20 }}>CBSE Class 9 Learning Platform</p>
+          <h1 style={{ fontSize: 34, marginBottom: 8 }}>StudyMate</h1>
+          <p style={{ marginBottom: 28 }}>
+            CBSE Class 9 Learning Platform
+          </p>
 
           <div
             style={{
               background: "#eef2ff",
-              padding: 12,
-              borderRadius: 8,
-              marginBottom: 12,
-              fontWeight: 500,
+              padding: 14,
+              borderRadius: 10,
+              marginBottom: 22,
+              fontWeight: 600,
             }}
           >
             Parent Access Control
@@ -61,23 +66,28 @@ export default function HomePage() {
             onChange={(e) => setCode(e.target.value)}
             style={{
               width: "100%",
-              padding: 10,
-              marginBottom: 12,
+              padding: 14,
+              fontSize: 16,
+              marginBottom: 14,
+              borderRadius: 10,
+              border: "1px solid #cbd5f5",
             }}
           />
 
           {error && (
-            <div style={{ color: "red", marginBottom: 8 }}>{error}</div>
+            <div style={{ color: "red", marginBottom: 12 }}>
+              {error}
+            </div>
           )}
 
           <button
-            onClick={handleEnter}
+            type="submit"
             style={{
               width: "100%",
-              padding: 12,
+              padding: 14,
               background: "#1e3a8a",
-              color: "#fff",
-              borderRadius: 8,
+              color: "#ffffff",
+              borderRadius: 10,
               border: "none",
               fontSize: 16,
               cursor: "pointer",
@@ -88,16 +98,16 @@ export default function HomePage() {
 
           <div
             style={{
-              marginTop: 16,
+              marginTop: 26,
               background: "#fef9c3",
-              padding: 10,
-              borderRadius: 8,
-              fontSize: 12,
+              padding: 14,
+              borderRadius: 10,
+              fontSize: 13,
             }}
           >
             This platform requires parent authorization for access.
           </div>
-        </div>
+        </form>
       </div>
     );
   }

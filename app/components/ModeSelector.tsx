@@ -7,8 +7,20 @@ export default function ModeSelector() {
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
       <Header onLogout={() => (window.location.href = "/")} />
 
-      <div style={{ padding: 40, maxWidth: 1200, margin: "0 auto" }}>
-        <h1 style={{ textAlign: "center" }}>
+      <main
+        style={{
+          maxWidth: 1200,
+          margin: "0 auto",
+          padding: "56px 24px",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            fontSize: 36,
+            marginBottom: 8,
+          }}
+        >
           Choose Your Learning Mode
         </h1>
 
@@ -16,7 +28,7 @@ export default function ModeSelector() {
           style={{
             textAlign: "center",
             color: "#475569",
-            marginBottom: 40,
+            marginBottom: 44,
           }}
         >
           Select how you want to study today
@@ -26,46 +38,78 @@ export default function ModeSelector() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 24,
+            gap: 28,
           }}
         >
-          <Card title="Teacher Mode" href="/teacher" color="#2563eb" />
-          <Card title="Examiner Mode" href="/examiner" color="#16a34a" />
-          <Card title="Oral Mode" href="/oral" color="#9333ea" />
-          <Card title="Progress Dashboard" href="/progress" color="#ea580c" />
+          <ModeCard
+            title="Teacher Mode"
+            desc="Learn concepts with clear NCERT-aligned explanations and examples."
+            color="#2563eb"
+            href="/teacher"
+          />
+
+          <ModeCard
+            title="Examiner Mode"
+            desc="Practice full-length question papers with evaluation and feedback."
+            color="#16a34a"
+            href="/examiner"
+          />
+
+          <ModeCard
+            title="Oral Mode"
+            desc="Strengthen recall and confidence with spoken question practice."
+            color="#9333ea"
+            href="/oral"
+          />
+
+          <ModeCard
+            title="Progress Dashboard"
+            desc="Track performance, strengths, weaknesses, and improvements."
+            color="#ea580c"
+            href="/progress"
+          />
         </div>
-      </div>
+      </main>
     </div>
   );
 }
 
-function Card(props: {
+function ModeCard(props: {
   title: string;
-  href: string;
+  desc: string;
   color: string;
+  href: string;
 }) {
   return (
     <div
       style={{
         background: "#ffffff",
-        borderRadius: 16,
-        padding: 24,
+        borderRadius: 18,
+        padding: "26px 24px",
         border: "1px solid #e5e7eb",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        minHeight: 210,
       }}
     >
-      <h3>{props.title}</h3>
+      <div>
+        <h3 style={{ marginBottom: 10 }}>{props.title}</h3>
+        <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.5 }}>
+          {props.desc}
+        </p>
+      </div>
 
       <a
         href={props.href}
         style={{
-          display: "block",
-          marginTop: 16,
-          padding: 12,
+          marginTop: 22,
+          padding: "12px",
           background: props.color,
           color: "#ffffff",
-          borderRadius: 8,
-          textAlign: "center",
+          borderRadius: 10,
           textDecoration: "none",
+          textAlign: "center",
           fontWeight: 600,
         }}
       >
