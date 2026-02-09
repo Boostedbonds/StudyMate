@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* App-wide base styles */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #f8fafc; /* calm light background */
+  color: #0f172a;
+}
