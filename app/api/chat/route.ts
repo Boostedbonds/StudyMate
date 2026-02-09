@@ -1,59 +1,56 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    if (!GEMINI_API_KEY) {
+    const body = await req.json();
+
+    if (!body || !Array.isArray(body.messages)) {
       return NextResponse.json(
-        { reply: "Gemini API key is missing." },
-        { status: 500 }
+        { reply: "Invalid request format." },
+        { status: 200 }
       );
     }
 
-    const body = await req.json();
-    const messages = body.messages;
+    const lastUserMessage = body.messages
+      .slice()
+      .reverse()
+      .find((m: any) => m.role === "user")?.content;
 
-    const prompt = messages
-      .map((m: any) =>
-        m.role === "user"
-          ? `Student: ${m.content}`
-          : `Teacher: ${m.content}`
-      )
-      .join("\n");
-
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: prompt }],
-            },
-          ],
-        }),
-      }
-    );
-
-    const geminiData = await geminiRes.json();
-
-    const reply =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!reply) {
-      return NextResponse.json({
-        reply: "I couldn't generate a response. Please try again.",
-      });
+    if (!lastUserMessage) {
+      return NextResponse.json(
+        { reply: "Please ask something to continue." },
+        { status: 200 }
+      );
     }
 
-    return NextResponse.json({ reply });
-  } catch (error) {
+    // ✅ Gemini 2.0 Flash (v1beta)
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+    });
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: lastUserMessage }],
+        },
+      ],
+    });
+
+    const reply =
+      result?.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "I couldn’t generate a response. Please try again.";
+
+    return NextResponse.json({ reply }, { status: 200 });
+  } catch (err) {
+    console.error("Gemini API error:", err);
+
     return NextResponse.json(
-      { reply: "Server error while contacting Gemini." },
-      { status: 500 }
+      { reply: "Something went wrong. Please try again." },
+      { status: 200 }
     );
   }
 }
