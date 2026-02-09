@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import ChatUI from "@/components/ChatUI";
-import ChatInput from "@/components/ChatInput";
+import ChatUI from "../components/ChatUI";
+import ChatInput from "../components/ChatInput";
 
 type Message = {
   role: "user" | "assistant";
@@ -15,21 +15,24 @@ export default function OralPage() {
   ]);
 
   async function handleSend(text: string) {
-    const updated = [...messages, { role: "user", content: text }];
-    setMessages(updated);
+    const userMessage: Message = { role: "user", content: text };
+    const updatedMessages: Message[] = [...messages, userMessage];
+    setMessages(updatedMessages);
 
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: updated }),
+      body: JSON.stringify({ messages: updatedMessages }),
     });
 
     const data = await res.json();
 
-    setMessages([
-      ...updated,
-      { role: "assistant", content: data.reply },
-    ]);
+    const aiMessage: Message = {
+      role: "assistant",
+      content: data.reply,
+    };
+
+    setMessages([...updatedMessages, aiMessage]);
   }
 
   return (
