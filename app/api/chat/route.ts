@@ -4,12 +4,6 @@ export const runtime = "nodejs";
 
 type Mode = "teacher" | "examiner" | "oral" | "progress";
 
-type ChatRequestBody = {
-  mode?: Mode;
-  message?: string;
-  history?: { role: "user" | "assistant"; content: string }[];
-};
-
 function buildSystemPrompt(mode: Mode): string {
   switch (mode) {
     case "teacher":
@@ -27,15 +21,14 @@ function buildSystemPrompt(mode: Mode): string {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: "OPENAI_API_KEY missing" },
+        { error: "GEMINI_API_KEY missing" },
         { status: 500 }
       );
     }
 
-    const body = (await req.json().catch(() => null)) as ChatRequestBody | null;
-
+    const body = await req.json().catch(() => null);
     if (!body?.mode || !body?.message?.trim()) {
       return NextResponse.json(
         { error: "Invalid request" },
@@ -43,24 +36,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const messages = [
-      { role: "system", content: buildSystemPrompt(body.mode) },
-      ...(body.history ?? []),
-      { role: "user", content: body.message },
-    ];
-
     const response = await fetch(
-      "https://api.openai.com/v1/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages,
-          temperature: 0.4,
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text:
+                    buildSystemPrompt(body.mode) +
+                    "\n\nStudent says:\n" +
+                    body.message,
+                },
+              ],
+            },
+          ],
         }),
       }
     );
@@ -71,9 +65,8 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-
     const reply =
-      data?.choices?.[0]?.message?.content ??
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ??
       "No response generated.";
 
     return NextResponse.json({ reply });
