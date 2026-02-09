@@ -3,110 +3,86 @@ import { NextRequest, NextResponse } from "next/server";
 type Mode = "teacher" | "examiner" | "oral" | "progress";
 
 type ChatRequestBody = {
-  mode: Mode;
-  message: string;
-  history?: { role: "user" | "assistant"; content: string }[];
+  mode?: Mode;
+  message?: string;
 };
 
 function buildSystemPrompt(mode: Mode): string {
   switch (mode) {
     case "teacher":
-      return `
-You are Study Mate in TEACHER MODE.
-Rules:
-- Explain concepts clearly and patiently
-- Use CBSE-style explanations
-- Step-by-step reasoning
-- Give 1–2 examples max
-- Never overwhelm the student
-- Ask ONE gentle follow-up question if helpful
-`;
-
+      return "You are StudyMate in TEACHER mode. Explain clearly, step by step, CBSE style.";
     case "examiner":
-      return `
-You are Study Mate in EXAMINER MODE.
-Rules:
-- Act like a strict CBSE examiner
-- Ask one question at a time
-- Wait for the student's answer
-- After answer, evaluate strictly:
-  - Correct / Partially Correct / Incorrect
-- Give marks-style feedback
-- Do NOT teach unless explicitly asked
-`;
-
+      return "You are StudyMate in EXAMINER mode. Ask one question at a time. Evaluate strictly.";
     case "oral":
-      return `
-You are Study Mate in ORAL MODE.
-Rules:
-- Ask short oral questions
-- Encourage spoken-style answers
-- Keep questions simple and progressive
-- Give quick feedback
-- Maintain a calm, motivating tone
-`;
-
+      return "You are StudyMate in ORAL mode. Ask short oral questions and give quick feedback.";
     case "progress":
-      return `
-You are Study Mate in PROGRESS MODE.
-Rules:
-- Summarize performance based on past answers
-- Highlight strengths and weak areas
-- No teaching
-- No new questions
-- Be encouraging but honest
-`;
-
+      return "You are StudyMate in PROGRESS mode. Summarize performance only.";
     default:
-      return "You are Study Mate.";
+      return "You are StudyMate.";
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as ChatRequestBody | null;
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY missing");
+      return NextResponse.json(
+        { error: "Server not configured" },
+        { status: 500 }
+      );
+    }
 
-    if (!body || !body.mode || !body.message) {
+    const body = (await req.json().catch(() => null)) as ChatRequestBody | null;
+
+    if (!body || !body.mode || !body.message || !body.message.trim()) {
       return NextResponse.json(
         { error: "Invalid request body" },
         { status: 400 }
       );
     }
 
-    const systemPrompt = buildSystemPrompt(body.mode);
-
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...(body.history ?? []),
-      { role: "user", content: body.message },
-    ];
-
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ""}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.4,
+        model: "gpt-4.1-mini",
+        input: [
+          {
+            role: "system",
+            content: buildSystemPrompt(body.mode),
+          },
+          {
+            role: "user",
+            content: body.message,
+          },
+        ],
       }),
     });
 
-    if (!openaiRes.ok) {
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("OpenAI HTTP error:", errText);
       return NextResponse.json(
-        { error: "OpenAI request failed" },
+        { error: errText },
         { status: 500 }
       );
     }
 
-    const data = await openaiRes.json();
+    const data = await response.json().catch(() => null);
+    console.log("OpenAI raw response:", JSON.stringify(data));
+
     const reply =
-      data?.choices?.[0]?.message?.content ?? "No response generated.";
+      data?.output_text ??
+      data?.output?.[0]?.content?.[0]?.text ??
+      data?.output?.[0]?.content?.[0]?.value ??
+      "No response generated.";
 
     return NextResponse.json({ reply });
   } catch (err) {
+    console.error("Unexpected server error:", err);
     return NextResponse.json(
       { error: "Unexpected server error" },
       { status: 500 }
