@@ -1,59 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
-type Props = {
-  onSend: (text: string) => void;
-};
-
-export default function ChatInput({ onSend }: Props) {
+export default function ChatInput({
+  onSend,
+}: {
+  onSend: (msg: string) => void;
+}) {
   const [text, setText] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
-
-  const send = () => {
-    if (!text.trim()) return;
-    onSend(text.trim());
-    setText("");
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  };
 
   return (
-    <div className="border-t bg-gray-50 py-6">
-      {/* Centered container like ChatGPT */}
-      <div className="mx-auto max-w-3xl px-4">
-        <div className="flex items-end gap-3 rounded-2xl border bg-white px-4 py-3 shadow-lg">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Type your message…"
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-base leading-relaxed focus:outline-none"
-            style={{ minHeight: "48px" }}
-          />
+    <div className="mt-6 flex justify-center">
+      <div className="flex w-full max-w-3xl items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
+        <textarea
+          className="flex-1 resize-none rounded-xl border border-slate-200 p-3 text-base focus:outline-none focus:ring-2 focus:ring-sky-400"
+          placeholder="Type your message..."
+          rows={2}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (text.trim()) {
+                onSend(text);
+                setText("");
+              }
+            }
+          }}
+        />
 
-          <button
-            onClick={send}
-            disabled={!text.trim()}
-            className="rounded-xl bg-blue-600 px-6 py-2.5 text-white font-medium hover:bg-blue-700 disabled:opacity-40"
-          >
-            Send
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            if (text.trim()) {
+              onSend(text);
+              setText("");
+            }
+          }}
+          className="rounded-xl bg-sky-500 px-5 py-3 text-white text-sm font-medium hover:bg-sky-600"
+        >
+          Send
+        </button>
       </div>
     </div>
   );
