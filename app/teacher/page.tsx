@@ -1,22 +1,52 @@
 "use client";
 
-import Header from "../components/Header";
-import ChatBox from "../components/ChatBox";
+import React, { useState } from "react";
+import ChatUI, { ChatMessage } from "../components/ChatUI";
+import ChatInput from "../components/ChatInput";
 
 export default function TeacherPage() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  const sendMessage = async (text: string) => {
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+    });
+
+    const data = await res.json();
+
+    const aiMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: data?.reply ?? "No response",
+    };
+
+    setMessages((prev) => [...prev, aiMsg]);
+  };
+
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        background: "#f1f5f9",
-      }}
-    >
-      <Header onLogout={() => (window.location.href = "/")} />
-      <div style={{ flex: 1 }}>
-        <ChatBox mode="teacher" />
-      </div>
+    <div className="flex flex-col h-screen bg-gray-50">
+      <header className="px-6 py-4 border-b bg-white">
+        <h1 className="text-xl font-semibold">StudyMate</h1>
+        <p className="text-sm text-gray-500">
+          CBSE Class 9 Learning Platform
+        </p>
+      </header>
+
+      <main className="flex-1 overflow-y-auto py-6">
+        <ChatUI messages={messages} />
+      </main>
+
+      <ChatInput onSend={sendMessage} />
     </div>
   );
 }
