@@ -7,7 +7,11 @@ type Msg = {
   content: string;
 };
 
-export default function TeacherMode() {
+type TeacherModeProps = {
+  onBack: () => void;
+};
+
+export default function TeacherMode({ onBack }: TeacherModeProps) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,6 +68,24 @@ export default function TeacherMode() {
   return (
     <div className="screen">
       <div className="card stack">
+        {/* 🔙 Back Button — locked base UI style */}
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={onBack}
+            style={{
+              padding: "10px 16px",
+              background: "#2563eb",
+              color: "#ffffff",
+              borderRadius: 12,
+              border: "none",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+
         <h2>Teacher Mode</h2>
 
         <div style={{ maxHeight: 300, overflowY: "auto" }}>

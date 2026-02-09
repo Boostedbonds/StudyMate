@@ -18,11 +18,29 @@ export default function ProgressPage() {
       <main
         style={{
           flex: 1,
-          padding: "64px 32px",
+          padding: "48px 32px",
           maxWidth: 1000,
           margin: "0 auto",
         }}
       >
+        {/* 🔙 Back Button — locked base UI style */}
+        <div style={{ marginBottom: 24 }}>
+          <button
+            onClick={() => (window.location.href = "/")}
+            style={{
+              padding: "10px 16px",
+              background: "#2563eb",
+              color: "#ffffff",
+              borderRadius: 12,
+              border: "none",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+
         <h1
           style={{
             fontSize: 36,

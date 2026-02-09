@@ -6,7 +6,11 @@ import { getRecords, clearRecords } from "../../lib/progress";
 import { getWeakTopics } from "../../lib/analytics";
 import { isParentVerified, verifyParent, clearParent } from "../../lib/parent";
 
-export default function ProgressMode() {
+type ProgressModeProps = {
+  onBack: () => void;
+};
+
+export default function ProgressMode({ onBack }: ProgressModeProps) {
   const profile = getActiveProfile();
 
   // 🔒 HARD EXIT — required
@@ -84,6 +88,24 @@ export default function ProgressMode() {
   return (
     <div className="screen">
       <div className="card stack">
+        {/* 🔙 Back Button — locked base UI style */}
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={onBack}
+            style={{
+              padding: "10px 16px",
+              background: "#2563eb",
+              color: "#ffffff",
+              borderRadius: 12,
+              border: "none",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+
         <h2>{childName} – Progress</h2>
 
         {weakTopics.length > 0 && (

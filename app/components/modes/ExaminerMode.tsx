@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { getStudent } from "@/app/lib/student";
 
-export default function ExaminerMode() {
+type ExaminerModeProps = {
+  onBack: () => void;
+};
+
+export default function ExaminerMode({ onBack }: ExaminerModeProps) {
   const student = getStudent();
 
   const [question, setQuestion] = useState("");
@@ -45,6 +49,24 @@ export default function ExaminerMode() {
 
   return (
     <div>
+      {/* 🔙 Back Button — locked base UI style */}
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={onBack}
+          style={{
+            padding: "10px 16px",
+            background: "#2563eb",
+            color: "#ffffff",
+            borderRadius: 12,
+            border: "none",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+
       <h2>Examiner Mode</h2>
 
       <textarea

@@ -15,6 +15,8 @@ export default function TeacherPage() {
   ]);
 
   async function handleSend(text: string) {
+    if (!text.trim()) return;
+
     const userMessage: Message = { role: "user", content: text };
     const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
@@ -22,22 +24,49 @@ export default function TeacherPage() {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: updatedMessages }),
+      body: JSON.stringify({
+        mode: "teacher", // 🔒 CRITICAL: enforce Teacher Mode rules
+        messages: updatedMessages,
+      }),
     });
 
     const data = await res.json();
 
     const aiMessage: Message = {
       role: "assistant",
-      content: data.reply,
+      content:
+        typeof data?.reply === "string"
+          ? data.reply
+          : "Something went wrong. Please try again.",
     };
 
     setMessages([...updatedMessages, aiMessage]);
   }
 
   return (
-    <div style={{ minHeight: "100vh", paddingTop: 32 }}>
-      <h1 style={{ textAlign: "center" }}>Teacher Mode</h1>
+    <div style={{ minHeight: "100vh", paddingTop: 24 }}>
+      {/* 🔙 Back Button — locked base UI style */}
+      <div style={{ paddingLeft: 24, marginBottom: 16 }}>
+        <button
+          onClick={() => (window.location.href = "/")}
+          style={{
+            padding: "10px 16px",
+            background: "#2563eb",
+            color: "#ffffff",
+            borderRadius: 12,
+            border: "none",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+
+      <h1 style={{ textAlign: "center", marginBottom: 16 }}>
+        Teacher Mode
+      </h1>
+
       <ChatUI messages={messages} />
       <ChatInput onSend={handleSend} />
     </div>

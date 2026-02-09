@@ -20,7 +20,11 @@ function saveInsight(_insight: Insight): void {
   return;
 }
 
-export default function OralMode() {
+type OralModeProps = {
+  onBack: () => void;
+};
+
+export default function OralMode({ onBack }: OralModeProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [topic, setTopic] = useState<string>("");
   const [level, setLevel] = useState<Level>("partial");
@@ -72,6 +76,24 @@ export default function OralMode() {
 
   return (
     <div style={{ padding: 16 }}>
+      {/* 🔙 Back Button — locked base UI style */}
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={onBack}
+          style={{
+            padding: "10px 16px",
+            background: "#2563eb",
+            color: "#ffffff",
+            borderRadius: 12,
+            border: "none",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+
       <h2>Oral Mode</h2>
 
       <input
