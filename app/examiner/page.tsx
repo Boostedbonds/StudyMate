@@ -1,30 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import ChatShell from "../components/ChatShell";
-import ChatUI, { ChatMessage } from "../components/ChatUI";
-import ChatInput from "../components/ChatInput";
+import ChatUI from "@/components/ChatUI";
+import ChatInput from "@/components/ChatInput";
 
 export default function ExaminerPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content:
-        "Welcome to Examiner Mode 📘 Ask a question or start a practice test.",
+      content: "Examiner Mode 📘 Ready for practice questions?",
     },
   ]);
 
+  function handleSend(text: string) {
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text },
+      {
+        role: "assistant",
+        content: "Answer noted. I’ll evaluate it shortly.",
+      },
+    ]);
+  }
+
   return (
-    <ChatShell
-      title="Examiner Mode"
-      subtitle="Practice questions & evaluation"
-    >
+    <div style={{ minHeight: "100vh", paddingTop: "24px" }}>
+      <h1 style={{ textAlign: "center" }}>Examiner Mode</h1>
       <ChatUI messages={messages} />
-      <ChatInput
-        onSend={(msg) =>
-          setMessages((m) => [...m, { role: "user", content: msg }])
-        }
-      />
-    </ChatShell>
+      <ChatInput onSend={handleSend} />
+    </div>
   );
 }

@@ -1,30 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import ChatShell from "../components/ChatShell";
-import ChatUI, { ChatMessage } from "../components/ChatUI";
-import ChatInput from "../components/ChatInput";
+import ChatUI from "@/components/ChatUI";
+import ChatInput from "@/components/ChatInput";
 
 export default function OralPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content:
-        "Oral Practice Mode 🎤 Answer verbally or type your response.",
+      content: "Oral Mode 🎤 Speak or type your answer.",
     },
   ]);
 
+  function handleSend(text: string) {
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text },
+      {
+        role: "assistant",
+        content: "Good explanation. Let’s refine it further.",
+      },
+    ]);
+  }
+
   return (
-    <ChatShell
-      title="Oral Practice"
-      subtitle="Speak or type your answers"
-    >
+    <div style={{ minHeight: "100vh", paddingTop: "24px" }}>
+      <h1 style={{ textAlign: "center" }}>Oral Mode</h1>
       <ChatUI messages={messages} />
-      <ChatInput
-        onSend={(msg) =>
-          setMessages((m) => [...m, { role: "user", content: msg }])
-        }
-      />
-    </ChatShell>
+      <ChatInput onSend={handleSend} />
+    </div>
   );
 }

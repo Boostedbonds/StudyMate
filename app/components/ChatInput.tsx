@@ -2,41 +2,80 @@
 
 import { useState } from "react";
 
-export default function ChatInput({
-  onSend,
-}: {
-  onSend: (msg: string) => void;
-}) {
-  const [text, setText] = useState("");
+type Props = {
+  onSend: (message: string) => void;
+};
+
+export default function ChatInput({ onSend }: Props) {
+  const [value, setValue] = useState("");
+
+  function handleSend() {
+    if (!value.trim()) return;
+    onSend(value.trim());
+    setValue("");
+  }
 
   return (
-    <div className="mt-6 flex justify-center">
-      <div className="flex w-full max-w-3xl items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
+    <div
+      style={{
+        position: "fixed",
+        bottom: "24px",
+        left: 0,
+        right: 0,
+        display: "flex",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "720px",
+          background: "white",
+          borderRadius: "18px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+          padding: "12px",
+          display: "flex",
+          gap: "12px",
+          alignItems: "flex-end",
+        }}
+      >
         <textarea
-          className="flex-1 resize-none rounded-xl border border-slate-200 p-3 text-base focus:outline-none focus:ring-2 focus:ring-sky-400"
-          placeholder="Type your message..."
-          rows={2}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Ask StudyMate anything…"
+          rows={1}
+          style={{
+            flex: 1,
+            resize: "none",
+            border: "none",
+            outline: "none",
+            fontSize: "16px",
+            lineHeight: "1.5",
+            padding: "10px 12px",
+            borderRadius: "12px",
+            background: "#f8fafc",
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (text.trim()) {
-                onSend(text);
-                setText("");
-              }
+              handleSend();
             }
           }}
         />
 
         <button
-          onClick={() => {
-            if (text.trim()) {
-              onSend(text);
-              setText("");
-            }
+          onClick={handleSend}
+          style={{
+            background: "#38bdf8",
+            color: "white",
+            border: "none",
+            borderRadius: "12px",
+            padding: "10px 18px",
+            fontSize: "15px",
+            fontWeight: 600,
+            cursor: "pointer",
           }}
-          className="rounded-xl bg-sky-500 px-5 py-3 text-white text-sm font-medium hover:bg-sky-600"
         >
           Send
         </button>

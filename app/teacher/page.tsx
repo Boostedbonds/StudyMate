@@ -1,26 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import ChatShell from "../components/ChatShell";
-import ChatUI, { ChatMessage } from "../components/ChatUI";
-import ChatInput from "../components/ChatInput";
+import ChatUI from "@/components/ChatUI";
+import ChatInput from "@/components/ChatInput";
 
 export default function TeacherPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: "Hi 😊 What would you like to study today?" },
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content: "Hi 😊 What would you like to study today?",
+    },
   ]);
 
+  function handleSend(text: string) {
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text },
+      {
+        role: "assistant",
+        content: "Got it! Let’s break it down step by step.",
+      },
+    ]);
+  }
+
   return (
-    <ChatShell
-      title="Teacher Mode"
-      subtitle="NCERT-aligned concept learning"
-    >
+    <div style={{ minHeight: "100vh", paddingTop: "24px" }}>
+      <h1 style={{ textAlign: "center" }}>Teacher Mode</h1>
       <ChatUI messages={messages} />
-      <ChatInput
-        onSend={(msg) =>
-          setMessages((m) => [...m, { role: "user", content: msg }])
-        }
-      />
-    </ChatShell>
+      <ChatInput onSend={handleSend} />
+    </div>
   );
 }
