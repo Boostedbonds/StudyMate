@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header";
 
+/* ================= Types ================= */
+
 type ExamAttempt = {
   id: string;
   date: string;
@@ -13,6 +15,14 @@ type ExamAttempt = {
   rawAnswerText: string;
 };
 
+type StudentContext = {
+  name: string;
+  class: string;
+  board: string;
+};
+
+/* ================= Config ================= */
+
 const SUBJECT_COLORS: Record<string, string> = {
   Maths: "#2563eb",
   Science: "#0d9488",
@@ -22,29 +32,46 @@ const SUBJECT_COLORS: Record<string, string> = {
   Unknown: "#64748b",
 };
 
-/* ---------- Progress Logic (temporary heuristic) ---------- */
-/* Later: replace with AI-driven chapter + syllabus coverage */
+/**
+ * Approximate NCERT chapter counts per class & subject.
+ * Used ONLY for progress calibration (not AI teaching).
+ */
+const SYLLABUS_SIZE: Record<string, Record<string, number>> = {
+  "6": { Maths: 13, Science: 16, English: 10 },
+  "7": { Maths: 15, Science: 18, English: 10 },
+  "8": { Maths: 16, Science: 18, English: 10 },
+  "9": { Maths: 15, Science: 15, English: 11, "Social Science": 20 },
+  "10": { Maths: 15, Science: 13, English: 11, "Social Science": 20 },
+  "11": { Maths: 16, Physics: 15, Chemistry: 14 },
+  "12": { Maths: 13, Physics: 15, Chemistry: 16 },
+};
 
-function getProgressPercent(count: number) {
-  if (count >= 5) return 90;
-  if (count >= 4) return 75;
-  if (count >= 3) return 60;
-  if (count >= 2) return 40;
-  if (count >= 1) return 20;
-  return 0;
-}
+/* ================= Helpers ================= */
 
 function getStatus(percent: number) {
   if (percent >= 80) return "Excellent";
   if (percent >= 60) return "Good";
   if (percent >= 40) return "Okay";
-  return "Needs Work";
+  if (percent >= 20) return "Needs Work";
+  return "Just Started";
 }
+
+/* ================= Component ================= */
 
 export default function ProgressPage() {
   const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
+  const [student, setStudent] = useState<StudentContext | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /* ---------- Load Student Context ---------- */
+  useEffect(() => {
+    const raw = localStorage.getItem("studymate_student");
+    if (raw) {
+      setStudent(JSON.parse(raw));
+    }
+  }, []);
+
+  /* ---------- Load Examiner Attempts ---------- */
   useEffect(() => {
     const stored = localStorage.getItem("studymate_exam_attempts");
     if (stored) {
@@ -52,22 +79,42 @@ export default function ProgressPage() {
     }
   }, []);
 
+  /* ---------- Subject-wise Progress ---------- */
   const subjectStats = useMemo(() => {
-    const map: Record<string, number> = {};
+    if (!student) return [];
+
+    const classLevel = student.class;
+    const syllabusForClass = SYLLABUS_SIZE[classLevel] ?? {};
+
+    const chapterMap: Record<string, Set<string>> = {};
 
     attempts.forEach((a) => {
-      map[a.subject] = (map[a.subject] ?? 0) + 1;
+      if (!chapterMap[a.subject]) {
+        chapterMap[a.subject] = new Set();
+      }
+      a.chapters.forEach((ch) => chapterMap[a.subject].add(ch));
     });
 
-    return Object.entries(map).map(([subject, count]) => {
-      const percent = getProgressPercent(count);
+    return Object.entries(chapterMap).map(([subject, chaptersSet]) => {
+      const totalChapters =
+        syllabusForClass[subject] ?? chaptersSet.size;
+
+      const covered = chaptersSet.size;
+      const percent =
+        totalChapters > 0
+          ? Math.min(
+              100,
+              Math.round((covered / totalChapters) * 100)
+            )
+          : 0;
+
       return {
         subject,
         percent,
         status: getStatus(percent),
       };
     });
-  }, [attempts]);
+  }, [attempts, student]);
 
   /* ---------- Export / Import ---------- */
 
@@ -109,6 +156,8 @@ export default function ProgressPage() {
     window.print();
   }
 
+  /* ================= Render ================= */
+
   return (
     <div
       style={{
@@ -129,7 +178,7 @@ export default function ProgressPage() {
           padding: "32px",
         }}
       >
-        {/* 🔙 Back (left-aligned like other pages) */}
+        {/* 🔙 Back */}
         <button
           onClick={() => (window.location.href = "/modes")}
           style={{
@@ -150,10 +199,10 @@ export default function ProgressPage() {
           Progress Dashboard
         </h1>
         <p style={{ color: "#475569", fontSize: 18, marginBottom: 32 }}>
-          Subject-wise learning progress across the syllabus.
+          Subject-wise syllabus progress (Examiner Mode only)
         </p>
 
-        {/* 📊 Progress Graph */}
+        {/* 📊 Graph */}
         <div
           style={{
             background: "#ffffff",
@@ -175,7 +224,7 @@ export default function ProgressPage() {
           >
             {subjectStats.length === 0 ? (
               <div style={{ color: "#64748b", fontSize: 16 }}>
-                Progress will appear here as tests are taken.
+                Progress will appear here as exams are taken.
               </div>
             ) : (
               subjectStats.map((s) => (
@@ -189,7 +238,6 @@ export default function ProgressPage() {
                     gap: 12,
                   }}
                 >
-                  {/* Bar container */}
                   <div
                     style={{
                       height: 200,
