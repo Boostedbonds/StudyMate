@@ -20,13 +20,20 @@ type ExamAttempt = {
 };
 
 export default function ExaminerPage() {
-  // ❌ Removed duplicate "Examiner Mode" chat message
   const [messages, setMessages] = useState<Message[]>([]);
 
   // ⏱️ Timer state
   const [examStarted, setExamStarted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🔽 Auto-scroll anchor
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  // 🔁 Auto-scroll on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   function startTimer() {
     if (timerRef.current) return;
@@ -135,12 +142,22 @@ ${uploadedText}
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
 
+    // 🔹 Read student context
+    let student = null;
+    try {
+      const stored = localStorage.getItem("studymate_student");
+      if (stored) student = JSON.parse(stored);
+    } catch {
+      student = null;
+    }
+
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: "examiner",
         messages: updatedMessages,
+        student, // ✅ PASS STUDENT CONTEXT
         uploadedText: uploadedText ?? null,
         timeTakenSeconds: elapsedSeconds,
       }),
@@ -150,15 +167,25 @@ ${uploadedText}
     const aiReply = typeof data?.reply === "string" ? data.reply : "";
 
     if (aiReply) {
-      setMessages([...updatedMessages, { role: "assistant", content: aiReply }]);
+      setMessages([
+        ...updatedMessages,
+        { role: "assistant", content: aiReply },
+      ]);
     } else {
       setMessages(updatedMessages);
     }
   }
 
   return (
-    <div style={{ minHeight: "100vh", paddingTop: 24 }}>
-      {/* 🔙 Back → Mode Selector (NOT logout) */}
+    <div
+      style={{
+        minHeight: "100vh",
+        paddingTop: 24,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* 🔙 Back */}
       <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
@@ -196,13 +223,33 @@ ${uploadedText}
         </div>
       )}
 
-      {/* ✅ Single heading only */}
       <h1 style={{ textAlign: "center", marginBottom: 16 }}>
         Examiner Mode
       </h1>
 
-      <ChatUI messages={messages} />
-      <ChatInput onSend={handleSend} />
+      {/* 💬 Chat area */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          paddingBottom: 96,
+        }}
+      >
+        <ChatUI messages={messages} />
+        <div ref={bottomRef} />
+      </div>
+
+      {/* ⌨️ Input */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          background: "#f8fafc",
+          paddingBottom: 16,
+        }}
+      >
+        <ChatInput onSend={handleSend} />
+      </div>
     </div>
   );
 }

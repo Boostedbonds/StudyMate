@@ -40,24 +40,25 @@ export default function ModeSelector() {
         minHeight: "100vh",
         background:
           "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 40%, #e0e7ff 100%)",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      {/* Logout intentionally goes to access control */}
+      {/* Header */}
       <Header onLogout={() => (window.location.href = "/")} />
 
       <main
         style={{
-          minHeight: "calc(100vh - 80px)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
+          flex: 1,
           maxWidth: 1400,
           margin: "0 auto",
           padding: "32px",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {/* 👋 Welcome */}
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
           <h1 style={{ fontSize: 36, marginBottom: 6 }}>
             Welcome, {student.name}
           </h1>
@@ -80,55 +81,66 @@ export default function ModeSelector() {
           style={{
             textAlign: "center",
             color: "#475569",
-            marginBottom: 40,
+            marginBottom: 24,
             fontSize: 18,
           }}
         >
           Select how you want to study today
         </p>
 
+        {/* 🔽 Centered modes grid */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 36,
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
           }}
         >
-          <ModeCard
-            icon="👩‍🏫"
-            title="Teacher Mode"
-            desc="Learn concepts with clear CBSE-aligned explanations and examples."
-            color="#2563eb"
-            href="/teacher"
-            cta="Start Learning →"
-          />
+          <div
+            style={{
+              width: "100%",
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: 36,
+            }}
+          >
+            <ModeCard
+              icon="👩‍🏫"
+              title="Teacher Mode"
+              desc="Learn concepts with clear CBSE-aligned explanations and examples."
+              color="#2563eb"
+              href="/teacher"
+              cta="Start Learning →"
+            />
 
-          <ModeCard
-            icon="🧪"
-            title="Examiner Mode"
-            desc="Practice full-length question papers in exam conditions."
-            color="#16a34a"
-            href="/examiner"
-            cta="Start Test →"
-          />
+            <ModeCard
+              icon="🧪"
+              title="Examiner Mode"
+              desc="Practice full-length question papers in exam conditions."
+              color="#16a34a"
+              href="/examiner"
+              cta="Start Test →"
+            />
 
-          <ModeCard
-            icon="🗣️"
-            title="Oral Mode"
-            desc="Improve recall and confidence through spoken practice."
-            color="#9333ea"
-            href="/oral"
-            cta="Start Speaking →"
-          />
+            <ModeCard
+              icon="🗣️"
+              title="Oral Mode"
+              desc="Improve recall and confidence through spoken practice."
+              color="#9333ea"
+              href="/oral"
+              cta="Start Speaking →"
+            />
 
-          <ModeCard
-            icon="📊"
-            title="Progress Dashboard"
-            desc="Review performance, strengths, and areas to improve."
-            color="#ea580c"
-            href="/progress"
-            cta="View Progress →"
-          />
+            <ModeCard
+              icon="📊"
+              title="Progress Dashboard"
+              desc="Review performance, strengths, and areas to improve."
+              color="#ea580c"
+              href="/progress"
+              cta="View Progress →"
+            />
+          </div>
         </div>
       </main>
     </div>
@@ -157,7 +169,9 @@ function ModeCard(props: {
       }}
     >
       <div>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>{props.icon}</div>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>
+          {props.icon}
+        </div>
 
         <h3 style={{ marginBottom: 14, fontSize: 24 }}>
           {props.title}

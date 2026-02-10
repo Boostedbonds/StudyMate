@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChatUI from "../components/ChatUI";
 import ChatInput from "../components/ChatInput";
 
@@ -17,6 +17,14 @@ export default function OralPage() {
         "I’m your CBSE learning partner 🎤 You can speak or type your answers. Let’s begin.",
     },
   ]);
+
+  // 🔽 Auto-scroll anchor
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  // 🔁 Scroll to bottom on message update
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   async function handleSend(text: string, uploadedText?: string) {
     if (!text.trim() && !uploadedText) return;
@@ -42,12 +50,24 @@ ${uploadedText}
     const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
 
+    // 🔹 Read student context
+    let student = null;
+    try {
+      const stored = localStorage.getItem("studymate_student");
+      if (stored) {
+        student = JSON.parse(stored);
+      }
+    } catch {
+      student = null;
+    }
+
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: "oral",
         messages: updatedMessages,
+        student, // ✅ PASS STUDENT CONTEXT
         uploadedText: uploadedText ?? null,
       }),
     });
@@ -66,8 +86,15 @@ ${uploadedText}
   }
 
   return (
-    <div style={{ minHeight: "100vh", paddingTop: 24 }}>
-      {/* 🔙 Back → Mode Selector (NOT logout) */}
+    <div
+      style={{
+        minHeight: "100vh",
+        paddingTop: 24,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* 🔙 Back */}
       <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
@@ -89,10 +116,29 @@ ${uploadedText}
         Oral Mode
       </h1>
 
-      {/* 🔊 Voice-enabled ChatUI */}
-      <ChatUI messages={messages} isOralMode />
+      {/* 💬 Chat area */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          paddingBottom: 96,
+        }}
+      >
+        <ChatUI messages={messages} isOralMode />
+        <div ref={bottomRef} />
+      </div>
 
-      <ChatInput onSend={handleSend} />
+      {/* ⌨️ Input */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          background: "#f8fafc",
+          paddingBottom: 16,
+        }}
+      >
+        <ChatInput onSend={handleSend} />
+      </div>
     </div>
   );
 }
