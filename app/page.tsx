@@ -7,6 +7,7 @@ const ACCESS_CODE = "0330";
 export default function HomePage() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [studentClass, setStudentClass] = useState("");
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -22,9 +23,14 @@ export default function HomePage() {
       return;
     }
 
+    if (!studentClass) {
+      setError("Please select class");
+      return;
+    }
+
     const studentContext = {
       name: name.trim(),
-      class: "9",
+      class: studentClass,
       board: "CBSE",
     };
 
@@ -60,8 +66,15 @@ export default function HomePage() {
         }}
       >
         <h1 style={{ fontSize: 36, marginBottom: 6 }}>StudyMate</h1>
-        <p style={{ marginBottom: 28, color: "#475569" }}>
-          CBSE Class 9 Learning Platform
+
+        {/* Subtitle */}
+        <p style={{ marginBottom: 4, color: "#475569", fontWeight: 600 }}>
+          Your Learning Platform
+        </p>
+
+        {/* Helper Text */}
+        <p style={{ marginBottom: 28, color: "#64748b", fontSize: 14 }}>
+          Supports CBSE & NCERT curriculum.
         </p>
 
         <div
@@ -76,6 +89,7 @@ export default function HomePage() {
           Access Control
         </div>
 
+        {/* Student Name */}
         <input
           type="text"
           placeholder="Student Name"
@@ -92,6 +106,30 @@ export default function HomePage() {
           }}
         />
 
+        {/* Class Selector */}
+        <select
+          value={studentClass}
+          onChange={(e) => setStudentClass(e.target.value)}
+          style={{
+            width: "100%",
+            padding: 16,
+            fontSize: 16,
+            marginBottom: 14,
+            borderRadius: 12,
+            border: "1px solid #cbd5f5",
+            textAlign: "center",
+            background: "#ffffff",
+          }}
+        >
+          <option value="">Select Class</option>
+          {[6, 7, 8, 9, 10, 11, 12].map((cls) => (
+            <option key={cls} value={cls}>
+              Class {cls}
+            </option>
+          ))}
+        </select>
+
+        {/* Access Code */}
         <input
           type="password"
           placeholder="Access Code"
@@ -139,7 +177,7 @@ export default function HomePage() {
             fontSize: 13,
           }}
         >
-          This platform requires parent authorization for access.
+          This platform requires parent authorization for student access.
         </div>
       </form>
     </div>
