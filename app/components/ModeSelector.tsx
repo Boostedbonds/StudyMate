@@ -88,17 +88,10 @@ export default function ModeSelector() {
           Select how you want to study today
         </p>
 
-        {/* 🔽 Centered modes grid */}
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
+        {/* ✅ Modes Grid – natural flow, no forced centering */}
+        <div style={{ width: "100%" }}>
           <div
             style={{
-              width: "100%",
               display: "grid",
               gridTemplateColumns:
                 "repeat(auto-fit, minmax(280px, 1fr))",
@@ -142,6 +135,22 @@ export default function ModeSelector() {
             />
           </div>
         </div>
+
+        {/* 🔒 Privacy Notice */}
+        <p
+          style={{
+            marginTop: 48,
+            textAlign: "center",
+            fontSize: 13,
+            color: "#64748b",
+            lineHeight: 1.6,
+          }}
+        >
+          <strong>Privacy Notice:</strong> Your learning data stays on this
+          device and is not stored on our servers. Progress reports are saved
+          locally or only when you choose to export or download them. AI
+          responses are generated securely and are not used to identify you.
+        </p>
       </main>
     </div>
   );
