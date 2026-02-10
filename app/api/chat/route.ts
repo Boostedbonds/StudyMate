@@ -20,10 +20,6 @@ Primary authority:
 - NCERT textbooks
 - CBSE official syllabus and exam patterns
 
-Uploaded PDFs or images (if provided):
-- Use them as priority reference
-- Never refuse or limit answers because something was not uploaded
-
 Always adapt explanations, difficulty, and language
 based on the student's class.
 
@@ -34,81 +30,42 @@ Stay strictly within CBSE & NCERT scope.
 
 const CLASS_DIFFERENTIATION_RULE = `
 MANDATORY CLASS DIFFERENTIATION RULE (STRICT):
-
-When explaining the SAME topic, your response MUST clearly differ
-based on the student's CBSE class.
-
-Class 6–7:
-- Very simple language
-- NO formulas
-- NO formal definitions
-- Only everyday life examples
-- Short explanations
-
-Class 8:
-- Introduce scientific terms
-- Very limited formulas (if absolutely required)
-- Conceptual focus, minimal calculations
-
-Class 9:
-- Proper NCERT definitions
-- Basic formulas where applicable
-- CBSE pre-board level explanation
-- Focus on understanding concepts
-
-Class 10 (BOARD EXAM CLASS – VERY IMPORTANT):
-- EXACT NCERT definitions
-- ALL relevant formulas
-- Stepwise explanations
-- Numericals and applications
-- Diagrams / graphs must be described in words
-- Exam-oriented keywords MUST be included
-
-Class 11–12:
-- Formal scientific language
-- Vector quantities and equations
-- Derivations and deeper conceptual treatment
-- Graphical and mathematical analysis
+Responses must differ clearly based on CBSE class level.
 `;
 
 /* ================= MODE PROMPTS ================= */
 
 const TEACHER_MODE_SYSTEM_PROMPT = `
 You are StudyMate in TEACHER MODE.
-Teach according to the student's CBSE class syllabus.
-Use simple, age-appropriate language.
-Use examples, stories, and step-by-step explanations.
-Ask 2–3 short revision questions.
-Do NOT conduct tests or exams.
+Teach according to CBSE syllabus.
+Ask short revision questions.
+Do NOT conduct exams.
 `;
 
 const EXAMINER_MODE_SYSTEM_PROMPT = `
 You are StudyMate in EXAMINER MODE acting as a CBSE board examiner.
 
-Generate a FULL CBSE-style question paper
-only when the user types START / BEGIN / YES.
-
-After generating the paper:
-- Enter STRICT SILENT EXAM MODE
-- Do NOT respond to answers
-- Do NOT give hints or feedback
-- Accept text, PDFs, images, handwritten uploads silently
-
-Evaluate ONLY when the user types:
-SUBMIT / DONE / FINISH / END TEST
+Generate paper ONLY on START.
+Stay silent until SUBMIT.
 `;
 
 const ORAL_MODE_SYSTEM_PROMPT = `
 You are StudyMate in ORAL MODE.
-Teach verbally and conversationally.
-Keep explanations short and age-appropriate.
+Teach conversationally.
 `;
 
-const PROGRESS_MODE_SYSTEM_PROMPT = `
-You are StudyMate in PROGRESS DASHBOARD MODE.
-Always identify the student by name and class.
-Summarize subject-wise and chapter-wise progress.
-Do NOT teach or generate questions.
+const PROGRESS_AI_SYSTEM_PROMPT = `
+You are a CBSE school teacher writing a progress report
+for parents and students.
+
+Based on subject-wise performance data:
+- Clearly state strengths
+- Clearly state weak areas
+- Mention which subject needs priority
+- Use simple, respectful, parent-friendly language
+- NO marks calculation
+- NO teaching
+- NO exam questions
 `;
 
 /* ================= EXAM SESSION STORE ================= */
@@ -149,11 +106,6 @@ async function callGemini(messages: ChatMessage[]) {
     }
   );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
-
   const data = await res.json();
   return (
     data.candidates?.[0]?.content?.parts?.[0]?.text ??
@@ -172,7 +124,31 @@ export async function POST(req: NextRequest) {
       student?: StudentContext;
     };
 
-    /* ================= EXAMINER MODE STATE CONTROL ================= */
+    /* ================= PROGRESS AI ANALYSIS ================= */
+
+    if (mode === "progress") {
+      const systemMessages: ChatMessage[] = [
+        { role: "system", content: GLOBAL_CBSE_CONTEXT },
+        { role: "system", content: CLASS_DIFFERENTIATION_RULE },
+        { role: "system", content: PROGRESS_AI_SYSTEM_PROMPT },
+      ];
+
+      if (student?.name && student?.class) {
+        systemMessages.unshift({
+          role: "system",
+          content: `Student Profile:
+Name: ${student.name}
+Class: ${student.class}
+Board: ${student.board ?? "CBSE"}`,
+        });
+      }
+
+      const finalMessages = [...systemMessages, ...messages];
+      const reply = await callGemini(finalMessages);
+      return NextResponse.json({ reply });
+    }
+
+    /* ================= EXAMINER MODE (UNCHANGED) ================= */
 
     if (mode === "examiner") {
       const key = getSessionKey(student);
@@ -184,32 +160,16 @@ export async function POST(req: NextRequest) {
           ?.toLowerCase()
           ?.trim() ?? "";
 
-      // ---- IDLE STATE ----
       if (session.status === "IDLE") {
         if (!["start", "begin", "yes"].includes(lastUserMessage)) {
-          return NextResponse.json({
-            reply: "Type START to begin the exam.",
-          });
+          return NextResponse.json({ reply: "Type START to begin the exam." });
         }
 
-        // Generate question paper ONCE
-        const systemMessages: ChatMessage[] = [
+        const paper = await callGemini([
           { role: "system", content: GLOBAL_CBSE_CONTEXT },
           { role: "system", content: CLASS_DIFFERENTIATION_RULE },
           { role: "system", content: EXAMINER_MODE_SYSTEM_PROMPT },
-        ];
-
-        if (student?.name && student?.class) {
-          systemMessages.unshift({
-            role: "system",
-            content: `Student Profile:
-Name: ${student.name}
-Class: ${student.class}
-Board: ${student.board ?? "CBSE"}`,
-          });
-        }
-
-        const paper = await callGemini(systemMessages);
+        ]);
 
         examSessions.set(key, {
           status: "IN_EXAM",
@@ -220,28 +180,10 @@ Board: ${student.board ?? "CBSE"}`,
         return NextResponse.json({ reply: paper });
       }
 
-      // ---- IN EXAM (SILENT MODE) ----
       if (session.status === "IN_EXAM") {
-        if (
-          ["submit", "done", "finish", "end test"].includes(lastUserMessage)
-        ) {
-          // Evaluate
-          const evaluationMessages: ChatMessage[] = [
+        if (["submit", "done", "finish", "end test"].includes(lastUserMessage)) {
+          const result = await callGemini([
             { role: "system", content: GLOBAL_CBSE_CONTEXT },
-            { role: "system", content: CLASS_DIFFERENTIATION_RULE },
-            {
-              role: "system",
-              content: `
-You are a CBSE board examiner.
-Evaluate the student's answers strictly.
-Provide:
-- Question-wise marks
-- Total marks
-- Strengths
-- Areas of improvement
-- CBSE-style remarks
-`,
-            },
             {
               role: "user",
               content: `
@@ -252,40 +194,24 @@ STUDENT ANSWERS:
 ${session.answers.join("\n\n")}
 `,
             },
-          ];
+          ]);
 
-          const result = await callGemini(evaluationMessages);
           examSessions.delete(key);
-
           return NextResponse.json({ reply: result });
         }
 
-        // Silent: collect answers only
         session.answers.push(lastUserMessage);
         examSessions.set(key, session);
-
         return NextResponse.json({ reply: "" });
       }
     }
 
-    /* ================= NON-EXAM MODES ================= */
+    /* ================= OTHER MODES ================= */
 
-    const systemMessages: ChatMessage[] = [];
-
-    if (student?.name && student?.class) {
-      systemMessages.push({
-        role: "system",
-        content: `Student Profile:
-Name: ${student.name}
-Class: ${student.class}
-Board: ${student.board ?? "CBSE"}`,
-      });
-    }
-
-    systemMessages.push(
+    const systemMessages: ChatMessage[] = [
       { role: "system", content: GLOBAL_CBSE_CONTEXT },
-      { role: "system", content: CLASS_DIFFERENTIATION_RULE }
-    );
+      { role: "system", content: CLASS_DIFFERENTIATION_RULE },
+    ];
 
     if (mode === "teacher") {
       systemMessages.push({
@@ -301,19 +227,10 @@ Board: ${student.board ?? "CBSE"}`,
       });
     }
 
-    if (mode === "progress") {
-      systemMessages.push({
-        role: "system",
-        content: PROGRESS_MODE_SYSTEM_PROMPT,
-      });
-    }
-
     const finalMessages = [...systemMessages, ...messages];
     const reply = await callGemini(finalMessages);
-
     return NextResponse.json({ reply });
-  } catch (error) {
-    console.error(error);
+  } catch {
     return NextResponse.json(
       { reply: "AI server error. Please try again." },
       { status: 500 }
