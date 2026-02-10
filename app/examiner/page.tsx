@@ -13,14 +13,32 @@ export default function ExaminerPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Examiner Mode 📘 Ready for practice questions?",
+      content: "Examiner Mode 📘 Type START or YES to begin the exam.",
     },
   ]);
 
-  async function handleSend(text: string) {
-    if (!text.trim()) return;
+  async function handleSend(text: string, uploadedText?: string) {
+    if (!text.trim() && !uploadedText) return;
 
-    const userMessage: Message = { role: "user", content: text };
+    let userContent = "";
+
+    // 🔒 Uploaded files are valid answer sheets
+    if (uploadedText) {
+      userContent += `
+[UPLOADED STUDY MATERIAL / ANSWER SHEET]
+${uploadedText}
+`;
+    }
+
+    if (text.trim()) {
+      userContent += text.trim();
+    }
+
+    const userMessage: Message = {
+      role: "user",
+      content: userContent.trim(),
+    };
+
     const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
 
@@ -30,6 +48,7 @@ export default function ExaminerPage() {
       body: JSON.stringify({
         mode: "examiner", // 🔒 CRITICAL: enforce Examiner rules
         messages: updatedMessages,
+        uploadedText: uploadedText ?? null,
       }),
     });
 
@@ -40,10 +59,19 @@ export default function ExaminerPage() {
       content:
         typeof data?.reply === "string"
           ? data.reply
-          : "Something went wrong. Please try again.",
+          : "",
     };
 
-    setMessages([...updatedMessages, aiMessage]);
+    /**
+     * 🔒 SILENT EXAM MODE SAFETY
+     * If examiner returns empty or non-text during silent phase,
+     * we still append safely without breaking UI.
+     */
+    if (aiMessage.content) {
+      setMessages([...updatedMessages, aiMessage]);
+    } else {
+      setMessages(updatedMessages);
+    }
   }
 
   return (

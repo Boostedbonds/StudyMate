@@ -131,13 +131,21 @@ export async function POST(req: NextRequest) {
     const mode: string =
       typeof body.mode === "string" ? body.mode : "teacher";
 
-    const lastUserMessage = body.messages
-      .slice()
-      .reverse()
-      .find((m: any) => m?.role === "user" && typeof m?.content === "string")
-      ?.content;
+    const uploadedText: string | null =
+      typeof body.uploadedText === "string" && body.uploadedText.trim().length > 0
+        ? body.uploadedText.trim()
+        : null;
 
-    if (!lastUserMessage) {
+    const lastUserMessage: string | null =
+      body.messages
+        .slice()
+        .reverse()
+        .find(
+          (m: any) =>
+            m?.role === "user" && typeof m?.content === "string"
+        )?.content ?? null;
+
+    if (!lastUserMessage && !uploadedText) {
       return NextResponse.json(
         { reply: "Please ask a valid academic question to continue." },
         { status: 200 }
@@ -145,6 +153,25 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt = getSystemPrompt(mode);
+
+    /**
+     * Merge uploaded file content safely (STUB)
+     */
+    let finalUserInput = "";
+
+    if (uploadedText) {
+      finalUserInput += `
+[UPLOADED STUDY MATERIAL / ANSWER SHEET]
+${uploadedText}
+`;
+    }
+
+    if (lastUserMessage) {
+      finalUserInput += `
+[USER MESSAGE]
+${lastUserMessage}
+`;
+    }
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
@@ -158,7 +185,7 @@ export async function POST(req: NextRequest) {
         },
         {
           role: "user",
-          parts: [{ text: lastUserMessage }],
+          parts: [{ text: finalUserInput }],
         },
       ],
     });

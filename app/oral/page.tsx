@@ -14,10 +14,27 @@ export default function OralPage() {
     { role: "assistant", content: "Oral Mode 🎤 Speak or type your answer." },
   ]);
 
-  async function handleSend(text: string) {
-    if (!text.trim()) return;
+  async function handleSend(text: string, uploadedText?: string) {
+    if (!text.trim() && !uploadedText) return;
 
-    const userMessage: Message = { role: "user", content: text };
+    let userContent = "";
+
+    if (uploadedText) {
+      userContent += `
+[UPLOADED STUDY MATERIAL / ANSWER SHEET]
+${uploadedText}
+`;
+    }
+
+    if (text.trim()) {
+      userContent += text.trim();
+    }
+
+    const userMessage: Message = {
+      role: "user",
+      content: userContent.trim(),
+    };
+
     const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
 
@@ -27,6 +44,7 @@ export default function OralPage() {
       body: JSON.stringify({
         mode: "oral", // 🔒 CRITICAL: enforce Oral Mode rules
         messages: updatedMessages,
+        uploadedText: uploadedText ?? null,
       }),
     });
 
