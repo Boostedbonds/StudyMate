@@ -1,8 +1,39 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Header from "./Header";
 
+type StudentContext = {
+  name: string;
+  class: string;
+  board: string;
+};
+
 export default function ModeSelector() {
+  const [student, setStudent] = useState<StudentContext | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("studymate_student");
+      if (!raw) {
+        window.location.href = "/";
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!parsed?.name || !parsed?.class) {
+        window.location.href = "/";
+        return;
+      }
+
+      setStudent(parsed);
+    } catch {
+      window.location.href = "/";
+    }
+  }, []);
+
+  if (!student) return null;
+
   return (
     <div
       style={{
@@ -17,18 +48,28 @@ export default function ModeSelector() {
         style={{
           maxWidth: 1400,
           margin: "0 auto",
-          padding: "64px 32px",
+          padding: "56px 32px",
         }}
       >
-        <h1
+        {/* 👋 Welcome */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <h1 style={{ fontSize: 36, marginBottom: 6 }}>
+            Welcome, {student.name}
+          </h1>
+          <p style={{ color: "#475569", fontSize: 18 }}>
+            Class {student.class} · {student.board}
+          </p>
+        </div>
+
+        <h2
           style={{
             textAlign: "center",
-            fontSize: 40,
+            fontSize: 32,
             marginBottom: 10,
           }}
         >
           Choose Your Learning Mode
-        </h1>
+        </h2>
 
         <p
           style={{
