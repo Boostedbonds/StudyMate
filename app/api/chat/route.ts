@@ -30,6 +30,50 @@ based on the student's class.
 Stay strictly within CBSE & NCERT scope.
 `;
 
+/* ================= MANDATORY CLASS DIFFERENTIATION ================= */
+
+const CLASS_DIFFERENTIATION_RULE = `
+MANDATORY CLASS DIFFERENTIATION RULE (STRICT):
+
+When explaining the SAME topic, your response MUST clearly differ
+based on the student's CBSE class.
+
+Class 6–7:
+- Very simple language
+- NO formulas
+- NO formal definitions
+- Only everyday life examples
+- Short explanations
+
+Class 8:
+- Introduce scientific terms
+- Very limited formulas (if absolutely required)
+- Conceptual focus, minimal calculations
+
+Class 9:
+- Proper NCERT definitions
+- Basic formulas where applicable
+- CBSE pre-board level explanation
+- Focus on understanding concepts
+
+Class 10 (BOARD EXAM CLASS – VERY IMPORTANT):
+- EXACT NCERT definitions
+- ALL relevant formulas
+- Stepwise explanations
+- Numericals and applications
+- Diagrams / graphs must be described in words
+- Exam-oriented keywords MUST be included
+
+Class 11–12:
+- Formal scientific language
+- Vector quantities and equations
+- Derivations and deeper conceptual treatment
+- Graphical and mathematical analysis
+
+If responses for different classes look similar,
+YOU ARE VIOLATING INSTRUCTIONS.
+`;
+
 /* ================= MODE PROMPTS ================= */
 
 const TEACHER_MODE_SYSTEM_PROMPT = `
@@ -129,10 +173,10 @@ Board: ${student.board ?? "CBSE"}`,
       });
     }
 
-    systemMessages.push({
-      role: "system",
-      content: GLOBAL_CBSE_CONTEXT,
-    });
+    systemMessages.push(
+      { role: "system", content: GLOBAL_CBSE_CONTEXT },
+      { role: "system", content: CLASS_DIFFERENTIATION_RULE }
+    );
 
     if (mode === "teacher") {
       systemMessages.push({
@@ -163,7 +207,6 @@ Board: ${student.board ?? "CBSE"}`,
     }
 
     const finalMessages = [...systemMessages, ...messages];
-
     const reply = await callGemini(finalMessages);
 
     return NextResponse.json({ reply });
