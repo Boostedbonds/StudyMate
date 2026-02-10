@@ -6,6 +6,8 @@ import ModeSelector from "./components/ModeSelector";
 const PARENT_CODE = "0330";
 
 export default function HomePage() {
+  const [name, setName] = useState("");
+  const [studentClass, setStudentClass] = useState("");
   const [code, setCode] = useState("");
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState("");
@@ -13,12 +15,33 @@ export default function HomePage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (code === PARENT_CODE) {
-      setAuthorized(true);
-      setError("");
-    } else {
-      setError("Invalid access code");
+    if (!name.trim()) {
+      setError("Please enter student name");
+      return;
     }
+
+    if (!studentClass) {
+      setError("Please select class");
+      return;
+    }
+
+    if (code !== PARENT_CODE) {
+      setError("Invalid access code");
+      return;
+    }
+
+    // ✅ Save student context
+    localStorage.setItem(
+      "studymate_student",
+      JSON.stringify({
+        name: name.trim(),
+        class: studentClass,
+        board: "CBSE",
+      })
+    );
+
+    setAuthorized(true);
+    setError("");
   }
 
   if (!authorized) {
@@ -39,37 +62,77 @@ export default function HomePage() {
             background: "#ffffff",
             padding: "52px 46px",
             borderRadius: 20,
-            width: 440,
+            width: 460,
             textAlign: "center",
             boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
           }}
         >
           <h1 style={{ fontSize: 36, marginBottom: 6 }}>StudyMate</h1>
-          <p style={{ marginBottom: 30, color: "#475569" }}>
-            CBSE Class 9 Learning Platform
+          <p style={{ marginBottom: 28, color: "#475569" }}>
+            CBSE Learning Platform
           </p>
 
           <div
             style={{
               background: "#eef2ff",
-              padding: 16,
+              padding: 14,
               borderRadius: 12,
               marginBottom: 24,
               fontWeight: 600,
             }}
           >
-            Parent Access Control
+            Access Control
           </div>
 
+          {/* Student Name */}
+          <input
+            type="text"
+            placeholder="Student Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 14,
+              fontSize: 16,
+              marginBottom: 14,
+              borderRadius: 12,
+              border: "1px solid #cbd5f5",
+              textAlign: "center",
+            }}
+          />
+
+          {/* Class Selector */}
+          <select
+            value={studentClass}
+            onChange={(e) => setStudentClass(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 14,
+              fontSize: 16,
+              marginBottom: 14,
+              borderRadius: 12,
+              border: "1px solid #cbd5f5",
+              textAlign: "center",
+            }}
+          >
+            <option value="">Select Class</option>
+            <option value="6">Class 6</option>
+            <option value="7">Class 7</option>
+            <option value="8">Class 8</option>
+            <option value="9">Class 9</option>
+            <option value="10">Class 10</option>
+          </select>
+
+          {/* Parent Code */}
           <input
             type="password"
-            placeholder="Access Code"
+            placeholder="Parent Access Code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             style={{
               width: "100%",
-              padding: 16,
-              fontSize: 18,
+              padding: 14,
+              fontSize: 16,
               marginBottom: 14,
               borderRadius: 12,
               border: "1px solid #cbd5f5",
@@ -101,14 +164,14 @@ export default function HomePage() {
 
           <div
             style={{
-              marginTop: 28,
+              marginTop: 26,
               background: "#fef9c3",
               padding: 14,
               borderRadius: 12,
               fontSize: 13,
             }}
           >
-            This platform requires parent authorization for access.
+            Parent authorization is required to access this platform.
           </div>
         </form>
       </div>
