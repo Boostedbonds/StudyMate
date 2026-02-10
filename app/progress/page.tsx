@@ -22,6 +22,9 @@ const SUBJECT_COLORS: Record<string, string> = {
   Unknown: "#64748b",
 };
 
+/* ---------- Progress Logic (temporary heuristic) ---------- */
+/* Later: replace with AI-driven chapter + syllabus coverage */
+
 function getProgressPercent(count: number) {
   if (count >= 5) return 90;
   if (count >= 4) return 75;
@@ -65,6 +68,8 @@ export default function ProgressPage() {
       };
     });
   }, [attempts]);
+
+  /* ---------- Export / Import ---------- */
 
   function exportProgress() {
     const blob = new Blob([JSON.stringify(attempts, null, 2)], {
@@ -124,7 +129,7 @@ export default function ProgressPage() {
           padding: "32px",
         }}
       >
-        {/* 🔙 Back */}
+        {/* 🔙 Back (left-aligned like other pages) */}
         <button
           onClick={() => (window.location.href = "/modes")}
           style={{
@@ -148,7 +153,7 @@ export default function ProgressPage() {
           Subject-wise learning progress across the syllabus.
         </p>
 
-        {/* 📊 Graph */}
+        {/* 📊 Progress Graph */}
         <div
           style={{
             background: "#ffffff",
@@ -158,26 +163,22 @@ export default function ProgressPage() {
             marginBottom: 40,
           }}
         >
-          {subjectStats.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                color: "#64748b",
-                padding: 40,
-              }}
-            >
-              Progress will appear here as tests are taken.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                gap: 40,
-                alignItems: "flex-end",
-                height: 260,
-              }}
-            >
-              {subjectStats.map((s) => (
+          <div
+            style={{
+              display: "flex",
+              gap: 40,
+              alignItems: "flex-end",
+              height: 260,
+              justifyContent:
+                subjectStats.length === 0 ? "center" : "flex-start",
+            }}
+          >
+            {subjectStats.length === 0 ? (
+              <div style={{ color: "#64748b", fontSize: 16 }}>
+                Progress will appear here as tests are taken.
+              </div>
+            ) : (
+              subjectStats.map((s) => (
                 <div
                   key={s.subject}
                   style={{
@@ -226,9 +227,9 @@ export default function ProgressPage() {
                     {s.status}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
 
         {/* 🔘 Actions */}
