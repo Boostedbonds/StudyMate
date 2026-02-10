@@ -1,232 +1,185 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+type ChatMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};
 
 /**
- * Force Node runtime (required for pdf-parse & Buffer)
+ * ================= CLASS 9 SYLLABUS CONTEXT =================
+ * This syllabus applies ONLY to Class 9 students.
+ *
+ * Authoritative sources:
+ * - NCERT Class 9 textbooks
+ * - CBSE-aligned syllabus PDFs & images uploaded earlier by the user
+ *
+ * IMPORTANT:
+ * - "English Chapter 1", "Science Chapter 1", etc. all refer to
+ *   chapters from the SAME Class 9 syllabus source.
+ * - Teacher, Examiner, and Oral modes MUST stay in sync with this syllabus.
+ * - No other class syllabus is allowed.
  */
-export const runtime = "nodejs";
+const CLASS_9_SYLLABUS_CONTEXT = `
+You are restricted to the NCERT Class 9 syllabus ONLY.
 
-/**
- * Ensure API key exists
- */
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  throw new Error("GEMINI_API_KEY is not defined");
-}
+The authoritative syllabus content comes exclusively from:
+- NCERT Class 9 textbooks
+- CBSE-aligned syllabus PDFs and images uploaded earlier by the user
 
-const genAI = new GoogleGenerativeAI(apiKey);
+This syllabus applies equally across all subjects
+(English, Science, Mathematics, Social Science, etc.)
+and across all modes (Teacher, Examiner, Oral).
 
-/**
- * SYSTEM PROMPT ROUTER
- */
-function getSystemPrompt(mode: string) {
-  const GLOBAL_RULE = `
-You are StudyMate AI.
-You must respond ONLY to NCERT / CBSE academic questions.
-If a query is unrelated to studies, gently refuse and clearly state that you answer only NCERT/CBSE academic questions.
+Do NOT assume, infer, or apply any content from other classes.
 `;
 
-  if (mode === "teacher") {
-    return `
-${GLOBAL_RULE}
-You are in TEACHER MODE.
-- Follow NCERT strictly.
-- Explain clearly.
-- No tests or evaluation.
+/* ================= TEACHER MODE ================= */
+
+const TEACHER_MODE_SYSTEM_PROMPT = `
+You are StudyMate in TEACHER MODE for CBSE Class 9 students.
+
+Rules to follow strictly:
+
+1. Follow NCERT textbooks strictly.
+2. Follow the latest CBSE syllabus and exam orientation.
+3. Explain concepts in simple, easy-to-understand language suitable for Class 9.
+4. Use stories, analogies, and real-life examples where helpful.
+5. Break explanations into clear points or steps.
+6. Describe diagrams, maps, processes, or figures clearly in words when useful.
+7. After explaining, ask 2–3 short thinking or revision questions.
+8. Encourage curiosity but stay within the CBSE syllabus.
+
+If no knowledge base content is available, answer using standard
+NCERT-based CBSE Class 9 understanding.
+Do NOT refuse to answer only because the knowledge base is empty.
+
+Use AI capabilities to their best to genuinely help the student
+prepare, learn, and understand concepts deeply.
+Anticipate confusion and explain patiently with clarity.
+
+Do not generate exams, tests, marks, or evaluations in Teacher Mode.
 `;
-  }
 
-  if (mode === "examiner") {
-    return `
-${GLOBAL_RULE}
-You are a STRICT but FAIR CBSE examiner.
-- Never guess syllabus.
-- Ask missing exam details ONLY ONCE.
-- Generate paper ONLY after details + START/BEGIN.
-- Remain silent after paper.
-- Accept uploads as answer sheets.
-- End exam on SUBMIT / DONE / STOP.
+/* ================= EXAMINER MODE ================= */
+
+const EXAMINER_MODE_SYSTEM_PROMPT = `
+You are StudyMate in EXAMINER MODE acting as a strict CBSE Class 9 board examiner.
+
+Rules to follow strictly:
+
+1. Generate question papers ONLY from the NCERT Class 9 syllabus
+   provided by the user.
+2. The syllabus scope MUST be identical to the syllabus used
+   in Teacher and Oral modes.
+3. Questions must be CBSE-oriented, exam-appropriate, and syllabus-aligned.
+
+When the user says START / YES / BEGIN:
+- Generate the FULL question paper in ONE message.
+- Clearly mention class, subject, chapters, time, marks, and sections.
+
+After displaying the paper:
+- Enter SILENT EXAM MODE.
+- Do NOT explain, hint, guide, or respond.
+- Treat all user messages as answer content only.
+
+Accept typed answers, images, or PDFs as valid answer sheets.
+Evaluate ONLY after explicit submission (SUBMIT / DONE / END TEST).
+
+Do NOT teach or explain in Examiner Mode.
+Redirect learning requests to Teacher Mode.
+
+This mode applies ONLY to Class 9.
 `;
-  }
 
-  if (mode === "oral") {
-    return `
-${GLOBAL_RULE}
-You are in ORAL MODE.
-- Conversational explanations only.
+/* ================= ORAL MODE ================= */
+
+const ORAL_MODE_SYSTEM_PROMPT = `
+You are StudyMate in ORAL MODE for CBSE Class 9 students.
+
+Rules to follow:
+
+1. Use the SAME NCERT Class 9 syllabus used in Teacher and Examiner modes.
+2. Explain concepts verbally and conversationally, suitable for oral learning.
+3. Use simple language, examples, and short explanations.
+4. Describe diagrams, stories, and processes in spoken-style words.
+5. Ask short oral questions to check understanding.
+6. Allow the student to answer verbally or in short text.
+7. Help with pronunciation, recall, and confidence.
+
+Do NOT conduct written exams, tests, or evaluations.
+Do NOT go outside the Class 9 syllabus.
+If deeper explanation is needed, explain patiently within CBSE scope.
 `;
-  }
 
-  if (mode === "progress") {
-    return `
-${GLOBAL_RULE}
-You are in PROGRESS DASHBOARD MODE.
-- Analytics only.
-`;
-  }
-
-  return GLOBAL_RULE;
-}
-
-/**
- * REAL PDF EXTRACTION (CommonJS – safe)
- */
-async function extractPdfText(base64Data: string): Promise<string | null> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pdfParse = require("pdf-parse");
-    const buffer = Buffer.from(base64Data, "base64");
-    const data = await pdfParse(buffer);
-    return data?.text ? data.text.slice(0, 15000) : null;
-  } catch (err) {
-    console.error("PDF parse failed:", err);
-    return null;
-  }
-}
-
-/**
- * REAL IMAGE OCR USING GEMINI VISION
- */
-async function extractImageText(
-  base64Data: string,
-  mimeType: string
-): Promise<string | null> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3-pro-preview",
-    });
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: "Extract all readable text from this image." },
-            {
-              inlineData: {
-                mimeType,
-                data: base64Data,
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    const text =
-      result?.response?.candidates?.[0]?.content?.parts
-        ?.map((p: any) => p.text)
-        .join("") ?? null;
-
-    return text ? text.slice(0, 12000) : null;
-  } catch (err) {
-    console.error("Image OCR failed:", err);
-    return null;
-  }
-}
-
-/**
- * POST HANDLER
- */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const { messages, mode } = body as {
+      messages: ChatMessage[];
+      mode: string;
+    };
 
-    if (!body || !Array.isArray(body.messages)) {
+    let systemMessages: ChatMessage[] = [];
+
+    if (mode === "teacher") {
+      systemMessages = [
+        { role: "system", content: CLASS_9_SYLLABUS_CONTEXT },
+        { role: "system", content: TEACHER_MODE_SYSTEM_PROMPT },
+      ];
+    }
+
+    if (mode === "examiner") {
+      systemMessages = [
+        { role: "system", content: CLASS_9_SYLLABUS_CONTEXT },
+        { role: "system", content: EXAMINER_MODE_SYSTEM_PROMPT },
+      ];
+    }
+
+    if (mode === "oral") {
+      systemMessages = [
+        { role: "system", content: CLASS_9_SYLLABUS_CONTEXT },
+        { role: "system", content: ORAL_MODE_SYSTEM_PROMPT },
+      ];
+    }
+
+    const finalMessages: ChatMessage[] =
+      systemMessages.length > 0
+        ? [...systemMessages, ...messages]
+        : messages;
+
+    const response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: finalMessages,
+          temperature: 0.3,
+        }),
+      }
+    );
+
+    if (!response.ok) {
       return NextResponse.json(
-        { reply: "Invalid request format." },
-        { status: 200 }
+        { reply: "AI server error. Please try again." },
+        { status: 500 }
       );
     }
 
-    const mode = typeof body.mode === "string" ? body.mode : "teacher";
-    let uploadedContent: string | null = null;
-
-    /**
-     * FILE HANDLING
-     */
-    if (
-      body.uploadedFile &&
-      typeof body.uploadedFile.base64 === "string"
-    ) {
-      const { type, name, base64 } = body.uploadedFile;
-
-      // 📄 PDF
-      if (type === "application/pdf") {
-        const pdfText = await extractPdfText(base64);
-        uploadedContent =
-          pdfText ??
-          `Student uploaded a PDF (${name}) but text could not be extracted.`;
-      }
-
-      // 🖼️ IMAGE
-      if (type.startsWith("image/")) {
-        const imageText = await extractImageText(base64, type);
-        uploadedContent =
-          imageText ??
-          `Student uploaded an image (${name}). Some text may be unreadable.`;
-      }
-    }
-
-    // Fallback (older stub support)
-    if (!uploadedContent && typeof body.uploadedText === "string") {
-      uploadedContent = body.uploadedText.trim();
-    }
-
-    const lastUserMessage =
-      body.messages
-        .slice()
-        .reverse()
-        .find(
-          (m: any) =>
-            m?.role === "user" && typeof m?.content === "string"
-        )?.content ?? null;
-
-    if (!lastUserMessage && !uploadedContent) {
-      return NextResponse.json(
-        { reply: "Please ask a valid academic question to continue." },
-        { status: 200 }
-      );
-    }
-
-    const systemPrompt = getSystemPrompt(mode);
-
-    let finalUserInput = "";
-
-    if (uploadedContent) {
-      finalUserInput += `
-[UPLOADED CONTENT]
-${uploadedContent}
-`;
-    }
-
-    if (lastUserMessage) {
-      finalUserInput += `
-[USER INPUT]
-${lastUserMessage}
-`;
-    }
-
-    const textModel = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-    });
-
-    const result = await textModel.generateContent({
-      contents: [
-        { role: "user", parts: [{ text: systemPrompt }] },
-        { role: "user", parts: [{ text: finalUserInput }] },
-      ],
-    });
-
+    const data = await response.json();
     const reply =
-      result?.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      data.choices?.[0]?.message?.content ??
+      "I couldn’t generate a response. Please try again.";
 
-    return NextResponse.json({ reply }, { status: 200 });
+    return NextResponse.json({ reply });
   } catch (error) {
-    console.error("API error:", error);
     return NextResponse.json(
-      { reply: "Something went wrong. Please try again later." },
-      { status: 200 }
+      { reply: "Something went wrong on the server." },
+      { status: 500 }
     );
   }
 }
