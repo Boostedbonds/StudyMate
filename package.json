@@ -11,6 +11,9 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "next": "16.1.6",
+    "parse": "^8.1.0",
+    "pdf": "^0.1.0",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

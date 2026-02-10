@@ -9,12 +9,19 @@ type Message = {
   content: string;
 };
 
+type ExamAttempt = {
+  id: string;
+  date: string;
+  mode: "examiner";
+  subject: string;
+  chapters: string[];
+  timeTakenSeconds: number;
+  rawAnswerText: string;
+};
+
 export default function ExaminerPage() {
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Examiner Mode",
-    },
+    { role: "assistant", content: "Examiner Mode" },
   ]);
 
   // ⏱️ Timer state
@@ -36,19 +43,60 @@ export default function ExaminerPage() {
     }
   }
 
-  function formatTime(seconds: number) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-
-    if (h > 0) return `${h}h ${m}m ${s}s`;
-    if (m > 0) return `${m}m ${s}s`;
-    return `${s}s`;
-  }
-
   useEffect(() => {
     return () => stopTimer();
   }, []);
+
+  function extractSubjectInfo(allMessages: Message[]) {
+    const userTexts = allMessages
+      .filter((m) => m.role === "user")
+      .map((m) => m.content.toLowerCase());
+
+    const joined = userTexts.join(" ");
+
+    let subject = "Unknown";
+    if (joined.includes("math")) subject = "Maths";
+    else if (joined.includes("science")) subject = "Science";
+    else if (joined.includes("english")) subject = "English";
+    else if (joined.includes("sst") || joined.includes("social"))
+      subject = "Social Science";
+    else if (joined.includes("hindi")) subject = "Hindi";
+
+    // chapters are free-text for now
+    return {
+      subject,
+      chapters: [],
+    };
+  }
+
+  function saveExamAttempt(allMessages: Message[]) {
+    const { subject, chapters } = extractSubjectInfo(allMessages);
+
+    const answerText = allMessages
+      .filter((m) => m.role === "user")
+      .map((m) => m.content)
+      .join("\n\n");
+
+    const attempt: ExamAttempt = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      mode: "examiner",
+      subject,
+      chapters,
+      timeTakenSeconds: elapsedSeconds,
+      rawAnswerText: answerText,
+    };
+
+    const existing = localStorage.getItem("studymate_exam_attempts");
+    const parsed: ExamAttempt[] = existing ? JSON.parse(existing) : [];
+
+    parsed.push(attempt);
+
+    localStorage.setItem(
+      "studymate_exam_attempts",
+      JSON.stringify(parsed)
+    );
+  }
 
   async function handleSend(text: string, uploadedText?: string) {
     if (!text.trim() && !uploadedText) return;
@@ -67,6 +115,7 @@ export default function ExaminerPage() {
       ["SUBMIT", "DONE", "STOP", "END TEST"].includes(normalized)
     ) {
       stopTimer();
+      saveExamAttempt(messages);
     }
 
     let userContent = "";
@@ -95,14 +144,12 @@ ${uploadedText}
         mode: "examiner",
         messages: updatedMessages,
         uploadedText: uploadedText ?? null,
-        timeTakenSeconds: elapsedSeconds, // ⏱️ recorded for evaluation
+        timeTakenSeconds: elapsedSeconds,
       }),
     });
 
     const data = await res.json();
-
-    const aiReply =
-      typeof data?.reply === "string" ? data.reply : "";
+    const aiReply = typeof data?.reply === "string" ? data.reply : "";
 
     if (aiReply) {
       setMessages([...updatedMessages, { role: "assistant", content: aiReply }]);
@@ -131,7 +178,7 @@ ${uploadedText}
         </button>
       </div>
 
-      {/* ⏱️ TIMER (Top-Right, big & visible) */}
+      {/* ⏱️ TIMER */}
       {examStarted && (
         <div
           style={{
@@ -147,7 +194,7 @@ ${uploadedText}
             zIndex: 100,
           }}
         >
-          ⏱ {formatTime(elapsedSeconds)}
+          ⏱ {elapsedSeconds}s
         </div>
       )}
 
