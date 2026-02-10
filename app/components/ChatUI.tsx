@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Message = {
   role: "user" | "assistant";
@@ -10,6 +10,7 @@ type Message = {
 type Props = {
   messages: Message[];
   isOralMode?: boolean;
+  language?: "en-IN" | "hi-IN";
 };
 
 function splitUploadedContent(content: string) {
@@ -25,14 +26,44 @@ function splitUploadedContent(content: string) {
   };
 }
 
-export default function ChatUI({ messages, isOralMode = false }: Props) {
+export default function ChatUI({
+  messages,
+  isOralMode = false,
+  language = "en-IN",
+}: Props) {
   const lastSpokenIndexRef = useRef<number>(-1);
+  const [selectedVoice, setSelectedVoice] =
+    useState<SpeechSynthesisVoice | null>(null);
 
+  /* -------------------- LOAD & PICK VOICE -------------------- */
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+
+    function pickVoice() {
+      const voices = window.speechSynthesis.getVoices();
+
+      const femaleVoice = voices.find(
+        (v) =>
+          v.lang === language &&
+          /female|woman|zira|samantha|google/i.test(v.name)
+      );
+
+      const anyLanguageVoice = voices.find(
+        (v) => v.lang === language
+      );
+
+      setSelectedVoice(femaleVoice || anyLanguageVoice || null);
+    }
+
+    pickVoice();
+    window.speechSynthesis.onvoiceschanged = pickVoice;
+  }, [language]);
+
+  /* -------------------- SPEAK ASSISTANT -------------------- */
   useEffect(() => {
     if (!isOralMode) return;
     if (!("speechSynthesis" in window)) return;
 
-    // Find the latest assistant message
     const lastIndex = messages.length - 1;
     const lastMessage = messages[lastIndex];
 
@@ -43,18 +74,22 @@ export default function ChatUI({ messages, isOralMode = false }: Props) {
       return;
     }
 
-    // Stop any ongoing speech
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(
+    const cleanText =
       splitUploadedContent(lastMessage.content).text ||
-        lastMessage.content
-    );
+      lastMessage.content;
 
-    utterance.lang = "en-IN";
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+
+    utterance.lang = language;
     utterance.rate = 0.95;
     utterance.pitch = 1;
     utterance.volume = 1;
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
 
     window.speechSynthesis.speak(utterance);
     lastSpokenIndexRef.current = lastIndex;
@@ -62,7 +97,7 @@ export default function ChatUI({ messages, isOralMode = false }: Props) {
     return () => {
       window.speechSynthesis.cancel();
     };
-  }, [messages, isOralMode]);
+  }, [messages, isOralMode, language, selectedVoice]);
 
   return (
     <div
