@@ -36,14 +36,17 @@ Never go outside CBSE scope.
 const EXAMINER_CONTEXT = `
 You are a strict CBSE Board Examiner.
 
-Rules:
-- Generate proper structured board-style question paper.
-- During exam: do not talk.
-- Evaluate strictly.
+During exam:
+- Stay completely silent.
+- Do not respond to answers.
+- Do not explain anything.
+
+On evaluation:
 - Mention each question number.
 - Assign marks clearly.
 - Give 0 if not attempted.
-- Explain why marks are deducted.
+- Clearly explain why marks were deducted.
+- Suggest how answer could be improved.
 - Provide total marks.
 - Provide percentage.
 - Provide time taken.
@@ -106,7 +109,6 @@ export async function POST(req: NextRequest) {
 
     const key = getSessionKey(student);
     const existing = examSessions.get(key);
-
     const session: ExamSession =
       existing ?? { status: "IDLE", answers: [] };
 
@@ -115,49 +117,17 @@ export async function POST(req: NextRequest) {
 
     const lower = lastUserMessage.toLowerCase();
 
-    /* ================= IDLE STATE ================= */
+    /* ================= IDLE ================= */
 
     if (session.status === "IDLE") {
-      // Greeting / normal conversation
-      if (
-        !lower.includes("start") &&
-        !lower.includes("test") &&
-        !lower.includes("exam")
-      ) {
-        const friendlyReply = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          {
-            role: "system",
-            content:
-              "You are a friendly teacher talking normally. Do not explain any academic content. Just respond naturally.",
-          },
-          { role: "user", content: lastUserMessage },
-        ]);
-
-        return NextResponse.json({ reply: friendlyReply });
-      }
-
-      // If student writes START but no subject given
+      // START without subject
       if (lower === "start" && !session.subjectRequest) {
         return NextResponse.json({
-          reply: "Please tell me the subject and chapters for your test first.",
+          reply: "Please tell me the subject and chapters for your test.",
         });
       }
 
-      // If subject request given
-      if (lower !== "start") {
-        examSessions.set(key, {
-          status: "IDLE",
-          subjectRequest: lastUserMessage,
-          answers: [],
-        });
-
-        return NextResponse.json({
-          reply: "Test noted. Type START when you are ready.",
-        });
-      }
-
-      // START → Generate paper immediately
+      // START with subject → generate immediately
       if (lower === "start" && session.subjectRequest) {
         const paperPrompt = `
 Generate a complete CBSE question paper.
@@ -165,7 +135,7 @@ Generate a complete CBSE question paper.
 Class: ${student?.class ?? "Not specified"}
 Subject Request: ${session.subjectRequest}
 
-Follow CBSE board format.
+Follow strict CBSE board format.
 Clearly number all questions.
 Mention total marks.
 Mention time allowed.
@@ -192,12 +162,33 @@ Mention time allowed.
           startTime: now,
         });
       }
+
+      // Greeting only
+      if (
+        lower === "hi" ||
+        lower === "hello" ||
+        lower === "hey"
+      ) {
+        return NextResponse.json({
+          reply: "Hi! Ready for your test? Tell me the subject and chapters.",
+        });
+      }
+
+      // Any other message → treat as subject request
+      examSessions.set(key, {
+        status: "IDLE",
+        subjectRequest: lastUserMessage,
+        answers: [],
+      });
+
+      return NextResponse.json({
+        reply: "Test noted. Type START to begin.",
+      });
     }
 
     /* ================= IN EXAM ================= */
 
     if (session.status === "IN_EXAM") {
-      // SUBMIT → evaluate
       if (
         ["submit", "done", "finished"].includes(lower)
       ) {
@@ -215,9 +206,12 @@ ${session.questionPaper ?? ""}
 STUDENT ANSWERS:
 ${session.answers.join("\n\n")}
 
-Also mention:
+Also provide:
+- Question-wise marks
 - Total marks obtained
 - Percentage
+- Detailed explanation for each deduction
+- How answers could be improved
 - Time taken: ${timeTakenSeconds} seconds
 `;
 
@@ -236,7 +230,7 @@ Also mention:
         });
       }
 
-      // During exam → stay silent
+      // Silent during exam
       session.answers.push(lastUserMessage);
       examSessions.set(key, session);
 
