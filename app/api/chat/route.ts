@@ -90,20 +90,16 @@ function getSessionKey(student?: StudentContext) {
 
 function safeParseEvaluationJSON(text: string) {
   try {
-    // Remove markdown fences
     const cleaned = text
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
-    // Extract first JSON object
     const match = cleaned.match(/\{[\s\S]*\}/);
-
     if (!match) return null;
 
     const parsed = JSON.parse(match[0]);
 
-    // Validate structure
     if (
       typeof parsed.marksObtained !== "number" ||
       typeof parsed.totalMarks !== "number" ||
@@ -117,6 +113,36 @@ function safeParseEvaluationJSON(text: string) {
   } catch {
     return null;
   }
+}
+
+/* ================= HELPERS ================= */
+
+function isGreeting(text: string) {
+  return ["hi", "hello", "hey"].includes(text);
+}
+
+function isIdentityQuery(text: string) {
+  return (
+    text.includes("class") ||
+    text.includes("name") ||
+    text.includes("do you know")
+  );
+}
+
+function looksLikeSubjectRequest(text: string) {
+  const keywords = [
+    "chapter",
+    "history",
+    "science",
+    "math",
+    "geography",
+    "civics",
+    "economics",
+    "english",
+    "test",
+    "exam"
+  ];
+  return keywords.some((k) => text.includes(k));
 }
 
 /* ================= GEMINI CALL ================= */
@@ -185,7 +211,32 @@ export async function POST(req: NextRequest) {
       const session: ExamSession =
         existing ?? { status: "IDLE", answers: [] };
 
+      /* ---------- IDLE STATE ---------- */
+
       if (session.status === "IDLE") {
+
+        // Greeting handling
+        if (isGreeting(lower)) {
+          return NextResponse.json({
+            reply: `Hello ${student?.name ?? "Student"}! Tell me the subject and chapters for your test.`,
+          });
+        }
+
+        // Identity query
+        if (isIdentityQuery(lower)) {
+          return NextResponse.json({
+            reply: `You are ${student?.name ?? "Student"}, Class ${student?.class ?? "Unknown"}. Tell me the subject and chapters for your test.`,
+          });
+        }
+
+        // START without subject
+        if (lower === "start" && !session.subjectRequest) {
+          return NextResponse.json({
+            reply: "Please tell me the subject and chapters before starting the test.",
+          });
+        }
+
+        // START with subject
         if (lower === "start" && session.subjectRequest) {
           const duration = calculateDurationMinutes(
             session.subjectRequest
@@ -224,22 +275,27 @@ Mention time allowed: ${duration} minutes.
           });
         }
 
-        if (session.subjectRequest) {
+        // Subject detection
+        if (looksLikeSubjectRequest(lower)) {
+          examSessions.set(key, {
+            status: "IDLE",
+            subjectRequest: lastUserMessage,
+            answers: [],
+          });
+
           return NextResponse.json({
-            reply: "Type START to begin the test.",
+            reply: "Test noted. Type START to begin.",
           });
         }
 
-        examSessions.set(key, {
-          status: "IDLE",
-          subjectRequest: lastUserMessage,
-          answers: [],
-        });
-
+        // Fallback
         return NextResponse.json({
-          reply: "Test noted. Type START to begin.",
+          reply:
+            "Examiner Mode is for conducting tests. Please tell me the subject and chapters for your test.",
         });
       }
+
+      /* ---------- IN EXAM ---------- */
 
       if (session.status === "IN_EXAM") {
         if (["submit", "done", "finished"].includes(lower)) {
@@ -317,8 +373,6 @@ Time taken: ${timeTakenSeconds} seconds.
       return NextResponse.json({ reply });
     }
 
-    /* ================= TEACHER ================= */
-
     if (mode === "teacher") {
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
@@ -328,8 +382,6 @@ Time taken: ${timeTakenSeconds} seconds.
 
       return NextResponse.json({ reply });
     }
-
-    /* ================= ORAL ================= */
 
     if (mode === "oral") {
       const reply = await callGemini([
