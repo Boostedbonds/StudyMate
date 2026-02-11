@@ -29,7 +29,7 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
             fontSize: 14,
           }}
         >
-          CBSE Class 9 Learning Platform
+          Competency-Based Adaptive Learning Platform
         </small>
       </div>
 
