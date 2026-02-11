@@ -61,15 +61,25 @@ Do NOT generate questions.
 `;
 
 const EXAMINER_PROMPT = `
-You are in EXAMINER MODE.
+You are a strict CBSE board examiner.
 
-When evaluating, return STRICT JSON ONLY in this format:
+Rules:
+- Maintain professional board exam tone.
+- If answer is fully correct → just award marks.
+- If partially correct → deduct marks and give 1 short reason line.
+- If incorrect → give 1 short reason line only.
+- No motivational language.
+- No teaching explanations.
+- No emojis.
+- Keep format clean and structured.
+
+Return STRICT JSON ONLY in this format:
 
 {
   "marksObtained": number,
   "totalMarks": number,
   "percentage": number,
-  "detailedEvaluation": "Full explanation text"
+  "detailedEvaluation": "Formatted evaluation text"
 }
 
 Do NOT return markdown.
@@ -147,7 +157,10 @@ function looksLikeSubjectRequest(text: string) {
 
 /* ================= GEMINI CALL ================= */
 
-async function callGemini(messages: ChatMessage[]) {
+async function callGemini(
+  messages: ChatMessage[],
+  temperature: number = 0.2
+) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
@@ -163,7 +176,7 @@ async function callGemini(messages: ChatMessage[]) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents,
-        generationConfig: { temperature: 0.2 },
+        generationConfig: { temperature },
       }),
     }
   );
@@ -186,6 +199,29 @@ function calculateDurationMinutes(request: string): number {
   if (chapterCount === 3) return 120;
   if (chapterCount === 2) return 90;
   return 60;
+}
+
+/* ================= FORMAT EVALUATION ================= */
+
+function formatBoardStyleEvaluation(
+  evaluationText: string,
+  marks: number,
+  total: number,
+  percentage: number,
+  timeTakenSeconds: number
+) {
+  const minutes = Math.floor(timeTakenSeconds / 60);
+  const seconds = timeTakenSeconds % 60;
+
+  return `
+${evaluationText.trim()}
+
+---------------------------------------
+
+Total Marks: ${marks}/${total}
+Percentage: ${percentage.toFixed(2)}%
+Time Taken: ${minutes}m ${seconds}s
+`.trim();
 }
 
 /* ================= API HANDLER ================= */
@@ -215,48 +251,51 @@ export async function POST(req: NextRequest) {
 
       if (session.status === "IDLE") {
 
-        // Greeting handling
         if (isGreeting(lower)) {
           return NextResponse.json({
-            reply: `Hello ${student?.name ?? "Student"}! Tell me the subject and chapters for your test.`,
+            reply: `Hello ${student?.name ?? "Student"}. Provide subject and chapters for the test.`,
           });
         }
 
-        // Identity query
         if (isIdentityQuery(lower)) {
           return NextResponse.json({
-            reply: `You are ${student?.name ?? "Student"}, Class ${student?.class ?? "Unknown"}. Tell me the subject and chapters for your test.`,
+            reply: `Student: ${student?.name ?? "Unknown"}, Class ${student?.class ?? "Unknown"}. Provide subject and chapters for the test.`,
           });
         }
 
-        // START without subject
         if (lower === "start" && !session.subjectRequest) {
           return NextResponse.json({
-            reply: "Please tell me the subject and chapters before starting the test.",
+            reply: "Specify subject and chapters before starting.",
           });
         }
 
-        // START with subject
         if (lower === "start" && session.subjectRequest) {
           const duration = calculateDurationMinutes(
             session.subjectRequest
           );
 
           const paperPrompt = `
-Generate a complete CBSE question paper.
+Generate a NEW and UNIQUE CBSE question paper.
 
 Class: ${student?.class ?? "Not specified"}
 User Request: ${session.subjectRequest}
 
-Follow CBSE format strictly.
-Mention total marks.
-Mention time allowed: ${duration} minutes.
+Rules:
+- Use ONLY chapters mentioned.
+- Follow CBSE board format.
+- Vary internal questions.
+- Do NOT repeat standard template wording.
+- Mention total marks.
+- Mention time allowed: ${duration} minutes.
 `;
 
-          const paper = await callGemini([
-            { role: "system", content: GLOBAL_CONTEXT },
-            { role: "user", content: paperPrompt },
-          ]);
+          const paper = await callGemini(
+            [
+              { role: "system", content: GLOBAL_CONTEXT },
+              { role: "user", content: paperPrompt },
+            ],
+            0.75 // creative for variation
+          );
 
           const now = Date.now();
 
@@ -275,7 +314,6 @@ Mention time allowed: ${duration} minutes.
           });
         }
 
-        // Subject detection
         if (looksLikeSubjectRequest(lower)) {
           examSessions.set(key, {
             status: "IDLE",
@@ -288,10 +326,9 @@ Mention time allowed: ${duration} minutes.
           });
         }
 
-        // Fallback
         return NextResponse.json({
           reply:
-            "Examiner Mode is for conducting tests. Please tell me the subject and chapters for your test.",
+            "Examiner Mode conducts tests only. Provide subject and chapters.",
         });
       }
 
@@ -305,22 +342,23 @@ Mention time allowed: ${duration} minutes.
             : 0;
 
           const evaluationPrompt = `
-Evaluate this answer sheet.
+Evaluate strictly.
 
 QUESTION PAPER:
 ${session.questionPaper ?? ""}
 
 STUDENT ANSWERS:
 ${session.answers.join("\n\n")}
-
-Time taken: ${timeTakenSeconds} seconds.
 `;
 
-          const resultText = await callGemini([
-            { role: "system", content: GLOBAL_CONTEXT },
-            { role: "system", content: EXAMINER_PROMPT },
-            { role: "user", content: evaluationPrompt },
-          ]);
+          const resultText = await callGemini(
+            [
+              { role: "system", content: GLOBAL_CONTEXT },
+              { role: "system", content: EXAMINER_PROMPT },
+              { role: "user", content: evaluationPrompt },
+            ],
+            0.2 // strict evaluation
+          );
 
           examSessions.delete(key);
 
@@ -332,8 +370,16 @@ Time taken: ${timeTakenSeconds} seconds.
               detailedEvaluation: resultText,
             };
 
+          const formatted = formatBoardStyleEvaluation(
+            parsed.detailedEvaluation,
+            parsed.marksObtained,
+            parsed.totalMarks,
+            parsed.percentage,
+            timeTakenSeconds
+          );
+
           return NextResponse.json({
-            reply: parsed.detailedEvaluation,
+            reply: formatted,
             examEnded: true,
             timeTakenSeconds,
             subject: session.subjectRequest,
@@ -351,7 +397,7 @@ Time taken: ${timeTakenSeconds} seconds.
       }
     }
 
-    /* ================= PROGRESS MODE ================= */
+    /* ================= OTHER MODES UNCHANGED ================= */
 
     if (mode === "progress") {
       const summaryData = attempts
