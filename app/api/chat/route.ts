@@ -93,6 +93,7 @@ function looksLikeSubjectRequest(text: string) {
     "history",
     "science",
     "math",
+    "mathematics",
     "geography",
     "civics",
     "economics",
@@ -212,9 +213,11 @@ export async function POST(req: NextRequest) {
     const attempts = Array.isArray(body?.attempts) ? body.attempts : [];
 
     const lastUserMessage =
-      messages.filter((m) => m.role === "user").pop()?.content ?? "";
+      body?.message ??
+      messages[messages.length - 1]?.content ??
+      "";
 
-    const lower = lastUserMessage.toLowerCase().trim();
+    const lower = (lastUserMessage ?? "").toLowerCase().trim();
 
     /* ================= EXAMINER MODE ================= */
 
@@ -232,7 +235,7 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
-      /* ---------- SUBMIT (RESILIENT) ---------- */
+      /* ---------- SUBMIT ---------- */
       if (isSubmit) {
         let questionPaper = session.questionPaper ?? "";
         let answers = session.answers ?? [];
@@ -320,15 +323,14 @@ ${answers.join("\n\n")}
         });
       }
 
-      /* ---------- IN_EXAM (SILENT MODE) ---------- */
+      /* ---------- IN EXAM ---------- */
       if (session.status === "IN_EXAM") {
         session.answers.push(lastUserMessage ?? "");
         examSessions.set(key, session);
         return NextResponse.json({ reply: "" });
       }
 
-      /* ---------- IDLE FLOW ---------- */
-
+      /* ---------- SUBJECT INPUT ---------- */
       if (looksLikeSubjectRequest(lower)) {
         examSessions.set(key, {
           status: "IDLE",
@@ -341,6 +343,7 @@ ${answers.join("\n\n")}
         });
       }
 
+      /* ---------- START ---------- */
       if (lower === "start" && session.subjectRequest) {
         const duration = calculateDurationMinutes(
           session.subjectRequest
