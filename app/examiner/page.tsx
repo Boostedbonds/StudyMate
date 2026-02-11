@@ -15,6 +15,8 @@ type ExamAttempt = {
   mode: "examiner";
   subject: string;
   chapters: string[];
+  marksObtained: number;
+  totalMarks: number;
   timeTakenSeconds: number;
   rawAnswerText: string;
 };
@@ -22,10 +24,8 @@ type ExamAttempt = {
 export default function ExaminerPage() {
   const [messages, setMessages] = useState<Message[]>([]);
 
-  /* ================= TIMER STATE ================= */
-
   const [examStarted, setExamStarted] = useState(false);
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimestampRef = useRef<number | null>(null);
@@ -38,25 +38,21 @@ export default function ExaminerPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  /* ================= TIMER LOGIC ================= */
+  /* ================= STOPWATCH ================= */
 
-  function startTimer(defaultMinutes: number = 60) {
+  function startTimer() {
     if (timerRef.current) return;
 
-    const totalSeconds = defaultMinutes * 60;
-    setRemainingSeconds(totalSeconds);
     setExamStarted(true);
-
     startTimestampRef.current = Date.now();
 
     timerRef.current = setInterval(() => {
-      setRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          stopTimer();
-          return 0;
-        }
-        return prev - 1;
-      });
+      if (startTimestampRef.current) {
+        const diff = Math.floor(
+          (Date.now() - startTimestampRef.current) / 1000
+        );
+        setElapsedSeconds(diff);
+      }
     }, 1000);
   }
 
@@ -75,30 +71,40 @@ export default function ExaminerPage() {
   function formatTime(seconds: number) {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m`;
+    const secs = seconds % 60;
+    return `${hrs}h ${mins}m ${secs}s`;
   }
 
   /* ================= SAVE ATTEMPT ================= */
 
-  function saveExamAttempt(allMessages: Message[], timeTaken: number) {
+  function saveExamAttempt(
+    allMessages: Message[],
+    timeTaken: number,
+    subject: string,
+    chapters: string[],
+    marksObtained: number,
+    totalMarks: number
+  ) {
     const answerText = allMessages
       .filter((m) => m.role === "user")
       .map((m) => m.content)
       .join("\n\n");
 
-    const attempt: ExamAttempt = {
+    const attempt = {
       id: crypto.randomUUID(),
       date: new Date().toISOString(),
       mode: "examiner",
-      subject: "Exam",
-      chapters: [],
+      subject,
+      chapters,
+      marksObtained,
+      totalMarks,
       timeTakenSeconds: timeTaken,
       rawAnswerText: answerText,
     };
 
     try {
       const existing = localStorage.getItem("studymate_exam_attempts");
-      const parsed: ExamAttempt[] = existing ? JSON.parse(existing) : [];
+      const parsed = existing ? JSON.parse(existing) : [];
       parsed.push(attempt);
       localStorage.setItem(
         "studymate_exam_attempts",
@@ -154,11 +160,10 @@ ${uploadedText}
     const data = await res.json();
     const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
 
-    /* ===== START TIMER WHEN PAPER GENERATED ===== */
+    /* ===== START TIMER ===== */
 
     if (typeof data?.startTime === "number" && !examStarted) {
-      // default 60 min if backend doesn't send duration
-      startTimer(60);
+      startTimer();
     }
 
     /* ===== EXAM ENDED ===== */
@@ -170,7 +175,30 @@ ${uploadedText}
       const start = startTimestampRef.current ?? end;
       const usedSeconds = Math.floor((end - start) / 1000);
 
-      saveExamAttempt(updatedMessages, usedSeconds);
+      const subject = data?.subject ?? "Exam";
+      const chapters = data?.chapters ?? [];
+      const marksObtained = data?.marksObtained ?? 0;
+      const totalMarks = data?.totalMarks ?? 0;
+
+      const evaluationWithTime =
+        aiReply +
+        `\n\n⏱ Time Taken: ${formatTime(usedSeconds)}`;
+
+      setMessages([
+        ...updatedMessages,
+        { role: "assistant", content: evaluationWithTime },
+      ]);
+
+      saveExamAttempt(
+        updatedMessages,
+        usedSeconds,
+        subject,
+        chapters,
+        marksObtained,
+        totalMarks
+      );
+
+      return;
     }
 
     if (aiReply) {
@@ -178,8 +206,6 @@ ${uploadedText}
         ...updatedMessages,
         { role: "assistant", content: aiReply },
       ]);
-    } else {
-      setMessages(updatedMessages);
     }
   }
 
@@ -226,7 +252,7 @@ ${uploadedText}
             zIndex: 100,
           }}
         >
-          ⏱ {formatTime(remainingSeconds)}
+          ⏱ {formatTime(elapsedSeconds)}
         </div>
       )}
 
@@ -234,13 +260,7 @@ ${uploadedText}
         Examiner Mode
       </h1>
 
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          paddingBottom: 96,
-        }}
-      >
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 96 }}>
         <ChatUI messages={messages} />
         <div ref={bottomRef} />
       </div>
