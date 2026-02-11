@@ -25,10 +25,10 @@ export default function ExaminerPage() {
   /* ================= TIMER STATE ================= */
 
   const [examStarted, setExamStarted] = useState(false);
-  const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimestampRef = useRef<number | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -40,11 +40,14 @@ export default function ExaminerPage() {
 
   /* ================= TIMER LOGIC ================= */
 
-  function startTimer(totalMinutes: number) {
-    if (!totalMinutes || timerRef.current) return;
+  function startTimer(defaultMinutes: number = 60) {
+    if (timerRef.current) return;
 
-    const totalSeconds = totalMinutes * 60;
+    const totalSeconds = defaultMinutes * 60;
     setRemainingSeconds(totalSeconds);
+    setExamStarted(true);
+
+    startTimestampRef.current = Date.now();
 
     timerRef.current = setInterval(() => {
       setRemainingSeconds((prev) => {
@@ -62,6 +65,7 @@ export default function ExaminerPage() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    setExamStarted(false);
   }
 
   useEffect(() => {
@@ -71,7 +75,6 @@ export default function ExaminerPage() {
   function formatTime(seconds: number) {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
-
     return `${hrs}h ${mins}m`;
   }
 
@@ -102,7 +105,7 @@ export default function ExaminerPage() {
         JSON.stringify(parsed)
       );
     } catch {
-      // fail silently
+      // silent fail
     }
   }
 
@@ -151,24 +154,21 @@ ${uploadedText}
     const data = await res.json();
     const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
 
-    /* ================= TIMER CONTROL FROM BACKEND ================= */
+    /* ===== START TIMER WHEN PAPER GENERATED ===== */
 
-    // When paper is generated, backend sends durationMinutes
-    if (typeof data?.durationMinutes === "number" && !examStarted) {
-      setDurationMinutes(data.durationMinutes);
-      setExamStarted(true);
-      startTimer(data.durationMinutes);
+    if (typeof data?.startTime === "number" && !examStarted) {
+      // default 60 min if backend doesn't send duration
+      startTimer(60);
     }
 
-    // When exam ends
+    /* ===== EXAM ENDED ===== */
+
     if (data?.examEnded === true) {
       stopTimer();
-      setExamStarted(false);
 
-      const usedSeconds =
-        durationMinutes && remainingSeconds >= 0
-          ? durationMinutes * 60 - remainingSeconds
-          : 0;
+      const end = Date.now();
+      const start = startTimestampRef.current ?? end;
+      const usedSeconds = Math.floor((end - start) / 1000);
 
       saveExamAttempt(updatedMessages, usedSeconds);
     }
@@ -194,7 +194,6 @@ ${uploadedText}
         flexDirection: "column",
       }}
     >
-      {/* Back Button */}
       <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
@@ -212,7 +211,6 @@ ${uploadedText}
         </button>
       </div>
 
-      {/* TIMER DISPLAY */}
       {examStarted && (
         <div
           style={{
