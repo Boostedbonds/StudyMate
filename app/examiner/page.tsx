@@ -22,23 +22,38 @@ type ExamAttempt = {
 export default function ExaminerPage() {
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // ⏱️ Timer state
+  /* ================= TIMER STATE ================= */
+
   const [examStarted, setExamStarted] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🔽 Auto-scroll anchor
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // 🔁 Auto-scroll on new messages
+  /* ================= AUTO SCROLL ================= */
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function startTimer() {
-    if (timerRef.current) return;
+  /* ================= TIMER LOGIC ================= */
+
+  function startTimer(totalMinutes: number) {
+    if (!totalMinutes || timerRef.current) return;
+
+    const totalSeconds = totalMinutes * 60;
+    setRemainingSeconds(totalSeconds);
+
     timerRef.current = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          stopTimer();
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
   }
 
@@ -53,30 +68,16 @@ export default function ExaminerPage() {
     return () => stopTimer();
   }, []);
 
-  function extractSubjectInfo(allMessages: Message[]) {
-    const userTexts = allMessages
-      .filter((m) => m.role === "user")
-      .map((m) => m.content.toLowerCase());
+  function formatTime(seconds: number) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
 
-    const joined = userTexts.join(" ");
-
-    let subject = "Unknown";
-    if (joined.includes("math")) subject = "Maths";
-    else if (joined.includes("science")) subject = "Science";
-    else if (joined.includes("english")) subject = "English";
-    else if (joined.includes("sst") || joined.includes("social"))
-      subject = "Social Science";
-    else if (joined.includes("hindi")) subject = "Hindi";
-
-    return {
-      subject,
-      chapters: [],
-    };
+    return `${hrs}h ${mins}m`;
   }
 
-  function saveExamAttempt(allMessages: Message[]) {
-    const { subject, chapters } = extractSubjectInfo(allMessages);
+  /* ================= SAVE ATTEMPT ================= */
 
+  function saveExamAttempt(allMessages: Message[], timeTaken: number) {
     const answerText = allMessages
       .filter((m) => m.role === "user")
       .map((m) => m.content)
@@ -86,48 +87,35 @@ export default function ExaminerPage() {
       id: crypto.randomUUID(),
       date: new Date().toISOString(),
       mode: "examiner",
-      subject,
-      chapters,
-      timeTakenSeconds: elapsedSeconds,
+      subject: "Exam",
+      chapters: [],
+      timeTakenSeconds: timeTaken,
       rawAnswerText: answerText,
     };
 
-    const existing = localStorage.getItem("studymate_exam_attempts");
-    const parsed: ExamAttempt[] = existing ? JSON.parse(existing) : [];
-
-    parsed.push(attempt);
-
-    localStorage.setItem(
-      "studymate_exam_attempts",
-      JSON.stringify(parsed)
-    );
+    try {
+      const existing = localStorage.getItem("studymate_exam_attempts");
+      const parsed: ExamAttempt[] = existing ? JSON.parse(existing) : [];
+      parsed.push(attempt);
+      localStorage.setItem(
+        "studymate_exam_attempts",
+        JSON.stringify(parsed)
+      );
+    } catch {
+      // fail silently
+    }
   }
+
+  /* ================= HANDLE SEND ================= */
 
   async function handleSend(text: string, uploadedText?: string) {
     if (!text.trim() && !uploadedText) return;
-
-    const normalized = text.trim().toUpperCase();
-
-    // ▶️ START / BEGIN
-    if (!examStarted && (normalized === "START" || normalized === "BEGIN")) {
-      setExamStarted(true);
-      startTimer();
-    }
-
-    // ⏹️ SUBMIT / DONE / STOP
-    if (
-      examStarted &&
-      ["SUBMIT", "DONE", "STOP", "END TEST"].includes(normalized)
-    ) {
-      stopTimer();
-      saveExamAttempt(messages);
-    }
 
     let userContent = "";
 
     if (uploadedText) {
       userContent += `
-[UPLOADED STUDY MATERIAL / ANSWER SHEET]
+[UPLOADED ANSWER SHEET]
 ${uploadedText}
 `;
     }
@@ -142,7 +130,6 @@ ${uploadedText}
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
 
-    // 🔹 Read student context
     let student = null;
     try {
       const stored = localStorage.getItem("studymate_student");
@@ -157,14 +144,34 @@ ${uploadedText}
       body: JSON.stringify({
         mode: "examiner",
         messages: updatedMessages,
-        student, // ✅ PASS STUDENT CONTEXT
-        uploadedText: uploadedText ?? null,
-        timeTakenSeconds: elapsedSeconds,
+        student,
       }),
     });
 
     const data = await res.json();
-    const aiReply = typeof data?.reply === "string" ? data.reply : "";
+    const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
+
+    /* ================= TIMER CONTROL FROM BACKEND ================= */
+
+    // When paper is generated, backend sends durationMinutes
+    if (typeof data?.durationMinutes === "number" && !examStarted) {
+      setDurationMinutes(data.durationMinutes);
+      setExamStarted(true);
+      startTimer(data.durationMinutes);
+    }
+
+    // When exam ends
+    if (data?.examEnded === true) {
+      stopTimer();
+      setExamStarted(false);
+
+      const usedSeconds =
+        durationMinutes && remainingSeconds >= 0
+          ? durationMinutes * 60 - remainingSeconds
+          : 0;
+
+      saveExamAttempt(updatedMessages, usedSeconds);
+    }
 
     if (aiReply) {
       setMessages([
@@ -176,6 +183,8 @@ ${uploadedText}
     }
   }
 
+  /* ================= UI ================= */
+
   return (
     <div
       style={{
@@ -185,7 +194,7 @@ ${uploadedText}
         flexDirection: "column",
       }}
     >
-      {/* 🔙 Back */}
+      {/* Back Button */}
       <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
@@ -203,7 +212,7 @@ ${uploadedText}
         </button>
       </div>
 
-      {/* ⏱️ TIMER */}
+      {/* TIMER DISPLAY */}
       {examStarted && (
         <div
           style={{
@@ -219,7 +228,7 @@ ${uploadedText}
             zIndex: 100,
           }}
         >
-          ⏱ {elapsedSeconds}s
+          ⏱ {formatTime(remainingSeconds)}
         </div>
       )}
 
@@ -227,7 +236,6 @@ ${uploadedText}
         Examiner Mode
       </h1>
 
-      {/* 💬 Chat area */}
       <div
         style={{
           flex: 1,
@@ -239,7 +247,6 @@ ${uploadedText}
         <div ref={bottomRef} />
       </div>
 
-      {/* ⌨️ Input */}
       <div
         style={{
           position: "sticky",
