@@ -274,35 +274,48 @@ ${aiSummary || "No AI summary available yet."}
                 height: 320,
               }}
             >
-              {subjects.map((s) => (
-                <div
-                  key={s.subject}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    flex: 1,
-                  }}
-                >
+              {subjects.map((s) => {
+                const barHeight = Math.max(
+                  (s.latest / 100) * 260,
+                  8
+                );
+
+                return (
                   <div
+                    key={s.subject}
                     style={{
-                      height: `${s.latest}%`,
-                      width: 40,
-                      background: s.color,
-                      borderRadius: 8,
-                      transition: "all 0.4s ease",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      flex: 1,
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        height: barHeight,
+                        width: 40,
+                        background: s.color,
+                        borderRadius: 8,
+                        transition: "all 0.4s ease",
+                      }}
+                    />
 
-                  <div style={{ marginTop: 10, fontSize: 13, textAlign: "center" }}>
-                    {s.subject}
-                  </div>
+                    <div
+                      style={{
+                        marginTop: 10,
+                        fontSize: 13,
+                        textAlign: "center",
+                      }}
+                    >
+                      {s.subject}
+                    </div>
 
-                  <div style={{ fontSize: 12, marginTop: 4 }}>
-                    {s.latest}%
+                    <div style={{ fontSize: 12, marginTop: 4 }}>
+                      {s.latest}%
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* RIGHT – AI Analysis */}
@@ -319,7 +332,8 @@ ${aiSummary || "No AI summary available yet."}
               </h2>
 
               <p style={{ lineHeight: 1.6 }}>
-                {aiSummary || "Analysis will appear after tests are evaluated."}
+                {aiSummary ||
+                  "Analysis will appear after tests are evaluated."}
               </p>
             </div>
           </div>
