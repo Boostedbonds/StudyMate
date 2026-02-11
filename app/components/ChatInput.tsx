@@ -15,7 +15,7 @@ declare global {
 
 export default function ChatInput({ onSend }: Props) {
   const [value, setValue] = useState("");
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const [uploadedText, setUploadedText] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
 
@@ -64,35 +64,40 @@ export default function ChatInput({ onSend }: Props) {
   }
 
   /* -------------------- ATTACHMENT -------------------- */
+
   function clearAttachment() {
-    setFileName(null);
+    setFileNames([]);
     setUploadedText(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    setFileName(file.name);
+    const names = files.map((file) => file.name);
+    setFileNames(names);
 
-    // Backend will do real OCR / PDF parsing
-    if (file.type === "application/pdf") {
-      setUploadedText(
-        `Student uploaded a PDF file named "${file.name}". Treat this as provided study material or answer sheet.`
-      );
-    } else if (file.type.startsWith("image/")) {
-      setUploadedText(
-        `Student uploaded an image file named "${file.name}". Treat this as provided study material or answer sheet.`
-      );
-    } else {
-      setUploadedText(
-        `Student uploaded a file named "${file.name}". Treat this as provided content.`
-      );
-    }
+    // Combine file descriptions
+    const combinedText = files
+      .map((file, index) => {
+        if (file.type === "application/pdf") {
+          return `Page ${index + 1}: PDF file "${file.name}" uploaded.`;
+        } else if (file.type.startsWith("image/")) {
+          return `Page ${index + 1}: Image file "${file.name}" uploaded.`;
+        } else {
+          return `Page ${index + 1}: File "${file.name}" uploaded.`;
+        }
+      })
+      .join("\n");
+
+    setUploadedText(
+      `Student uploaded the following answer sheets:\n${combinedText}`
+    );
   }
 
   /* -------------------- SEND -------------------- */
+
   function handleSend() {
     const trimmed = value.trim();
     if (!trimmed && !uploadedText) return;
@@ -129,18 +134,20 @@ export default function ChatInput({ onSend }: Props) {
         }}
       >
         {/* 📎 Attachment preview */}
-        {fileName && (
+        {fileNames.length > 0 && (
           <div
             style={{
               fontSize: 13,
               color: "#475569",
               display: "flex",
-              alignItems: "center",
-              gap: 8,
+              flexDirection: "column",
+              gap: 4,
               paddingLeft: 6,
             }}
           >
-            📎 {fileName}
+            {fileNames.map((name, i) => (
+              <div key={i}>📎 {name}</div>
+            ))}
             <button
               onClick={clearAttachment}
               style={{
@@ -149,10 +156,11 @@ export default function ChatInput({ onSend }: Props) {
                 cursor: "pointer",
                 fontSize: 14,
                 color: "#ef4444",
+                alignSelf: "flex-start",
               }}
-              title="Remove attachment"
+              title="Remove attachments"
             >
-              ✕
+              ✕ Remove
             </button>
           </div>
         )}
@@ -162,6 +170,7 @@ export default function ChatInput({ onSend }: Props) {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             accept="application/pdf,image/png,image/jpeg"
             onChange={handleFileChange}
             style={{ display: "none" }}
@@ -180,7 +189,7 @@ export default function ChatInput({ onSend }: Props) {
               cursor: "pointer",
               flexShrink: 0,
             }}
-            title="Attach PDF or Image"
+            title="Attach PDF or Images"
           >
             +
           </button>
