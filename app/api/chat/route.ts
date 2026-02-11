@@ -116,6 +116,24 @@ async function callGemini(messages: ChatMessage[]) {
   );
 }
 
+/* ================= SUBJECT DETECTION ================= */
+
+function looksLikeSubjectRequest(text: string) {
+  const keywords = [
+    "chapter",
+    "history",
+    "science",
+    "math",
+    "geography",
+    "civics",
+    "economics",
+    "english",
+    "test",
+  ];
+
+  return keywords.some((k) => text.includes(k));
+}
+
 /* ================= API HANDLER ================= */
 
 export async function POST(req: NextRequest) {
@@ -140,12 +158,22 @@ export async function POST(req: NextRequest) {
         existing ?? { status: "IDLE", answers: [] };
 
       if (session.status === "IDLE") {
+        // Greeting
+        if (["hi", "hello", "hey"].includes(lower)) {
+          return NextResponse.json({
+            reply:
+              "Hi! Ready for your test? Tell me the subject and chapters.",
+          });
+        }
+
+        // START without subject
         if (lower === "start" && !session.subjectRequest) {
           return NextResponse.json({
             reply: "Please tell me the subject and chapters for your test.",
           });
         }
 
+        // START with subject → generate paper
         if (lower === "start" && session.subjectRequest) {
           const paperPrompt = `
 Generate a complete CBSE question paper.
@@ -180,23 +208,23 @@ Mention total marks and time allowed.
           });
         }
 
-        // greeting
-        if (["hi", "hello", "hey"].includes(lower)) {
+        // If looks like subject → store it
+        if (looksLikeSubjectRequest(lower)) {
+          examSessions.set(key, {
+            status: "IDLE",
+            subjectRequest: lastUserMessage,
+            answers: [],
+          });
+
           return NextResponse.json({
-            reply:
-              "Hi! Ready for your test? Tell me the subject and chapters.",
+            reply: "Test noted. Type START to begin.",
           });
         }
 
-        // treat message as subject request
-        examSessions.set(key, {
-          status: "IDLE",
-          subjectRequest: lastUserMessage,
-          answers: [],
-        });
-
+        // Normal conversation (do NOT treat as subject)
         return NextResponse.json({
-          reply: "Test noted. Type START to begin.",
+          reply:
+            "Examiner Mode is only for conducting tests. Please tell me the subject and chapters when ready.",
         });
       }
 
@@ -240,7 +268,7 @@ Also provide:
           });
         }
 
-        // silent during exam
+        // Silent during exam
         session.answers.push(lastUserMessage);
         examSessions.set(key, session);
 
@@ -248,7 +276,7 @@ Also provide:
       }
     }
 
-    /* ================= TEACHER MODE ================= */
+    /* ================= TEACHER ================= */
 
     if (mode === "teacher") {
       const reply = await callGemini([
@@ -264,7 +292,7 @@ Also provide:
       return NextResponse.json({ reply });
     }
 
-    /* ================= ORAL MODE ================= */
+    /* ================= ORAL ================= */
 
     if (mode === "oral") {
       const reply = await callGemini([
@@ -280,7 +308,7 @@ Also provide:
       return NextResponse.json({ reply });
     }
 
-    /* ================= PROGRESS MODE ================= */
+    /* ================= PROGRESS ================= */
 
     if (mode === "progress") {
       const reply = await callGemini([
