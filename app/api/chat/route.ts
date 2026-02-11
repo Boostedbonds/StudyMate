@@ -85,6 +85,33 @@ function getSessionKey(student?: StudentContext) {
   return `${student.name}_${student.class ?? "unknown"}`;
 }
 
+/* ================= HELPERS ================= */
+
+function looksLikeSubjectRequest(text: string) {
+  const keywords = [
+    "chapter",
+    "history",
+    "science",
+    "math",
+    "geography",
+    "civics",
+    "economics",
+    "english",
+    "hindi",
+  ];
+  return keywords.some((k) => text.includes(k));
+}
+
+function calculateDurationMinutes(request: string): number {
+  const chapterMatches = request.match(/chapter\s*\d+/gi);
+  const chapterCount = chapterMatches ? chapterMatches.length : 1;
+
+  if (chapterCount >= 4) return 150;
+  if (chapterCount === 3) return 120;
+  if (chapterCount === 2) return 90;
+  return 60;
+}
+
 /* ================= SAFE JSON PARSER ================= */
 
 function safeParseEvaluationJSON(text: string) {
@@ -205,12 +232,12 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
+      /* ---------- SUBMIT (RESILIENT) ---------- */
       if (isSubmit) {
         let questionPaper = session.questionPaper ?? "";
         let answers = session.answers ?? [];
         let startedAt = session.startedAt ?? Date.now();
 
-        // Reconstruction fallback
         if (!questionPaper) {
           questionPaper = messages
             .filter((m) => m.role === "assistant")
@@ -293,10 +320,67 @@ ${answers.join("\n\n")}
         });
       }
 
+      /* ---------- IN_EXAM (SILENT MODE) ---------- */
       if (session.status === "IN_EXAM") {
         session.answers.push(lastUserMessage ?? "");
         examSessions.set(key, session);
         return NextResponse.json({ reply: "" });
+      }
+
+      /* ---------- IDLE FLOW ---------- */
+
+      if (looksLikeSubjectRequest(lower)) {
+        examSessions.set(key, {
+          status: "IDLE",
+          subjectRequest: lastUserMessage,
+          answers: [],
+        });
+
+        return NextResponse.json({
+          reply: "Test noted. Type START to begin.",
+        });
+      }
+
+      if (lower === "start" && session.subjectRequest) {
+        const duration = calculateDurationMinutes(
+          session.subjectRequest
+        );
+
+        const paperPrompt = `
+Generate a NEW and UNIQUE CBSE question paper.
+
+Class: ${student?.class ?? "Not specified"}
+User Request: ${session.subjectRequest}
+
+STRICT RULES:
+- Maintain CBSE formatting
+- Mention Total Marks clearly
+- Mention Time Allowed: ${duration} minutes
+`;
+
+        const paper = await callGemini(
+          [
+            { role: "system", content: GLOBAL_CONTEXT },
+            { role: "user", content: paperPrompt },
+          ],
+          0.7
+        );
+
+        const now = Date.now();
+
+        examSessions.set(key, {
+          status: "IN_EXAM",
+          subjectRequest: session.subjectRequest,
+          questionPaper: paper,
+          answers: [],
+          startedAt: now,
+        });
+
+        return NextResponse.json({
+          reply: paper,
+          startTime: now,
+          durationMinutes: duration,
+        });
       }
 
       return NextResponse.json({
