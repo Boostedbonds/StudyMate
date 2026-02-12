@@ -193,10 +193,17 @@ export async function POST(req: NextRequest) {
 
     const mode: string = body?.mode ?? "";
     const student: StudentContext | undefined = body?.student;
+    const attempts = Array.isArray(body?.attempts) ? body.attempts : [];
 
-    // 🔥 IMPORTANT FIX: Support history (frontend sends history, not messages)
-    const history = Array.isArray(body?.history) ? body.history : [];
-    const message = body?.message ?? "";
+    // 🔥 FIX: Accept both history and messages
+    const history: ChatMessage[] =
+      Array.isArray(body?.history)
+        ? body.history
+        : Array.isArray(body?.messages)
+        ? body.messages
+        : [];
+
+    const message: string = body?.message ?? "";
 
     const fullConversation: ChatMessage[] = [
       ...history,
@@ -223,13 +230,11 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
-      /* ---------- SUBMIT (Long Exam Safe) ---------- */
       if (isSubmit) {
         let questionPaper = session.questionPaper ?? "";
         let answers = session.answers ?? [];
         let startedAt = session.startedAt ?? Date.now();
 
-        // If memory lost, reconstruct from history
         if (!questionPaper) {
           questionPaper = fullConversation
             .filter((m) => m.role === "assistant")
@@ -312,14 +317,12 @@ ${answers.join("\n\n")}
         });
       }
 
-      /* ---------- IN EXAM ---------- */
       if (session.status === "IN_EXAM") {
         session.answers.push(message ?? "");
         examSessions.set(key, session);
         return NextResponse.json({ reply: "" });
       }
 
-      /* ---------- SUBJECT INPUT ---------- */
       if (looksLikeSubjectRequest(lower)) {
         examSessions.set(key, {
           status: "IDLE",
@@ -332,7 +335,6 @@ ${answers.join("\n\n")}
         });
       }
 
-      /* ---------- START ---------- */
       if (lower === "start" && session.subjectRequest) {
         const duration = calculateDurationMinutes(
           session.subjectRequest
@@ -378,13 +380,9 @@ STRICT RULES:
       return NextResponse.json({ reply: greetingLine });
     }
 
-    /* ================= OTHER MODES UNCHANGED ================= */
+    /* ================= PROGRESS MODE ================= */
 
     if (mode === "progress") {
-      const attempts = Array.isArray(body?.attempts)
-        ? body.attempts
-        : [];
-
       const summaryData = attempts
         .map(
           (a: any) =>
@@ -401,6 +399,37 @@ STRICT RULES:
           role: "user",
           content: `Analyze this student performance data:\n${summaryData}`,
         },
+      ]);
+
+      return NextResponse.json({ reply });
+    }
+
+    /* ================= TEACHER MODE ================= */
+
+    if (mode === "teacher") {
+      const teacherContext = `
+Student Name: ${student?.name ?? "Student"}
+Class: ${student?.class ?? "Not specified"}
+Board: CBSE
+`;
+
+      const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: TEACHER_PROMPT },
+        { role: "system", content: teacherContext },
+        ...fullConversation,
+      ]);
+
+      return NextResponse.json({ reply });
+    }
+
+    /* ================= ORAL MODE ================= */
+
+    if (mode === "oral") {
+      const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: ORAL_PROMPT },
+        ...fullConversation,
       ]);
 
       return NextResponse.json({ reply });
