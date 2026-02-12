@@ -178,7 +178,10 @@ export async function POST(req: NextRequest) {
         ? body.messages
         : [];
 
-    const message: string = body?.message ?? "";
+    const message: string =
+  body?.message ??
+  history.filter((m) => m.role === "user").pop()?.content ??
+  "";
     const lower = message.toLowerCase().trim();
 
     const fullConversation: ChatMessage[] = [
