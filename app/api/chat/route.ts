@@ -37,38 +37,29 @@ Never go outside CBSE scope.
 
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
-
 IMPORTANT:
-- Student name and class are already collected via access control.
-- NEVER ask for student's class or name again.
-
-Explain clearly using class-appropriate language.
-Stay strictly within NCERT and CBSE syllabus.
-After explanation, ask exactly 2 short revision questions.
+- Student name and class are already collected.
+- NEVER ask class or name again.
+Explain clearly.
+Stay strictly CBSE.
+Ask exactly 2 revision questions.
 `;
 
 const ORAL_PROMPT = `
 You are in ORAL MODE.
-
-IMPORTANT:
-- Student name and class are already known.
-- NEVER ask for class again.
-- NEVER ask for name again.
-- Keep answers short.
-- Conversational classroom style.
-- Strictly CBSE & NCERT aligned.
+- Student name & class already known.
+- Never ask class again.
+- Keep answers short and conversational.
 `;
 
 const PROGRESS_PROMPT = `
 You are generating a concise CBSE-style academic performance summary.
-
 Maximum 6 lines.
-Professional school report tone.
+Professional tone.
 `;
 
 const EXAMINER_PROMPT = `
 You are in EXAMINER MODE.
-
 Return STRICT JSON ONLY:
 
 {
@@ -102,8 +93,10 @@ function looksLikeSubjectRequest(text: string) {
     "math",
     "mathematics",
     "geography",
+    "geo",
     "civics",
     "economics",
+    "eco",
     "english",
     "hindi",
   ];
@@ -111,7 +104,7 @@ function looksLikeSubjectRequest(text: string) {
 }
 
 function calculateDurationMinutes(request: string): number {
-  const chapterMatches = request.match(/chapter\s*\d+/gi);
+  const chapterMatches = request.match(/\b\d+\b/g);
   const chapterCount = chapterMatches ? chapterMatches.length : 1;
 
   if (chapterCount >= 4) return 150;
@@ -177,7 +170,6 @@ export async function POST(req: NextRequest) {
 
     const mode: string = body?.mode ?? "";
     const student: StudentContext | undefined = body?.student;
-    const attempts = Array.isArray(body?.attempts) ? body.attempts : [];
 
     const history: ChatMessage[] =
       Array.isArray(body?.history)
@@ -187,13 +179,12 @@ export async function POST(req: NextRequest) {
         : [];
 
     const message: string = body?.message ?? "";
+    const lower = message.toLowerCase().trim();
 
     const fullConversation: ChatMessage[] = [
       ...history,
       { role: "user", content: message },
     ];
-
-    const lower = message.toLowerCase().trim();
 
     /* ================= EXAMINER MODE ================= */
 
@@ -213,17 +204,44 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
-      /* ---------- SUBMIT ---------- */
+      /* 🔥 LONG EXAM SAFE SUBMIT */
+      if (isSubmit) {
+        let questionPaper = session.questionPaper ?? "";
+        let answers = session.answers ?? [];
 
-      if (isSubmit && session.status === "IN_EXAM") {
+        // 🔥 Reconstruction if memory lost
+        if (!questionPaper) {
+          questionPaper = fullConversation
+            .filter((m) => m.role === "assistant")
+            .map((m) => m.content ?? "")
+            .join("\n\n");
+
+          answers = fullConversation
+            .filter((m) => m.role === "user")
+            .map((m) => m.content ?? "")
+            .filter(
+              (m) =>
+                !["submit", "done", "finished", "finish", "end test"].includes(
+                  m.toLowerCase().trim()
+                )
+            );
+        }
+
+        if (!questionPaper || answers.length === 0) {
+          return NextResponse.json({
+            reply:
+              "Unable to locate question paper or answers. Please resend your answers.",
+          });
+        }
+
         const evaluationPrompt = `
 Evaluate this answer sheet.
 
 QUESTION PAPER:
-${session.questionPaper ?? ""}
+${questionPaper}
 
 STUDENT ANSWERS:
-${session.answers.join("\n\n")}
+${answers.join("\n\n")}
 `;
 
         const resultText = await callGemini(
@@ -240,16 +258,14 @@ ${session.answers.join("\n\n")}
         return NextResponse.json({ reply: resultText });
       }
 
-      /* ---------- COLLECT ANSWERS ---------- */
-
+      /* IN EXAM */
       if (session.status === "IN_EXAM") {
         session.answers.push(message);
         examSessions.set(key, session);
         return NextResponse.json({ reply: "" });
       }
 
-      /* ---------- SUBJECT INPUT ---------- */
-
+      /* SUBJECT INPUT */
       if (looksLikeSubjectRequest(lower)) {
         const duration = calculateDurationMinutes(message);
 
@@ -266,6 +282,7 @@ Topic: ${message}
 Time Allowed: ${duration} minutes
 
 Follow CBSE board pattern strictly.
+Mention Total Marks.
 `,
             },
           ],
@@ -286,65 +303,36 @@ Follow CBSE board pattern strictly.
       return NextResponse.json({ reply: greetingLine });
     }
 
-    /* ================= ORAL MODE ================= */
-
-    if (mode === "oral") {
-      const oralContext = `
-Student Name: ${student?.name ?? "Student"}
-Class: ${student?.class ?? ""}
-Board: CBSE
-`;
-
-      const reply = await callGemini([
-        { role: "system", content: GLOBAL_CONTEXT },
-        { role: "system", content: ORAL_PROMPT },
-        { role: "system", content: oralContext },
-        ...fullConversation,
-      ]);
-
-      return NextResponse.json({ reply });
-    }
-
-    /* ================= TEACHER MODE ================= */
+    /* ================= TEACHER ================= */
 
     if (mode === "teacher") {
-      const teacherContext = `
-Student Name: ${student?.name ?? "Student"}
-Class: ${student?.class ?? ""}
-Board: CBSE
-`;
-
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: TEACHER_PROMPT },
-        { role: "system", content: teacherContext },
         ...fullConversation,
       ]);
-
       return NextResponse.json({ reply });
     }
 
-    /* ================= PROGRESS MODE ================= */
+    /* ================= ORAL ================= */
+
+    if (mode === "oral") {
+      const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: ORAL_PROMPT },
+        ...fullConversation,
+      ]);
+      return NextResponse.json({ reply });
+    }
+
+    /* ================= PROGRESS ================= */
 
     if (mode === "progress") {
-      const summaryData = attempts
-        .map(
-          (a: any) =>
-            `Subject: ${a?.subject ?? ""}, Score: ${
-              a?.scorePercent ?? 0
-            }%, Time: ${a?.timeTakenSeconds ?? 0}s`
-        )
-        .join("\n");
-
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: PROGRESS_PROMPT },
-        {
-          role: "user",
-          content: `Analyze this student performance data:\n${summaryData}`,
-        },
+        ...fullConversation,
       ]);
-
       return NextResponse.json({ reply });
     }
 
