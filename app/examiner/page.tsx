@@ -37,11 +37,11 @@ export default function ExaminerPage() {
 
   /* ================= STOPWATCH ================= */
 
-  function startTimer() {
+  function startTimer(serverStartTime: number) {
     if (timerRef.current) return;
 
+    startTimestampRef.current = serverStartTime;
     setExamStarted(true);
-    startTimestampRef.current = Date.now();
 
     timerRef.current = setInterval(() => {
       if (startTimestampRef.current) {
@@ -115,9 +115,7 @@ export default function ExaminerPage() {
         "studymate_exam_attempts",
         JSON.stringify(parsed)
       );
-    } catch {
-      // silent fail
-    }
+    } catch {}
   }
 
   /* ================= HANDLE SEND ================= */
@@ -148,9 +146,7 @@ ${uploadedText}
     try {
       const stored = localStorage.getItem("studymate_student");
       if (stored) student = JSON.parse(stored);
-    } catch {
-      student = null;
-    }
+    } catch {}
 
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -163,18 +159,19 @@ ${uploadedText}
     });
 
     const data = await res.json();
-    const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
+    const aiReply: string =
+      typeof data?.reply === "string" ? data.reply : "";
 
-    if (typeof data?.startTime === "number" && !examStarted) {
-      startTimer();
+    /* ✅ START TIMER FROM SERVER TIME */
+    if (typeof data?.startTime === "number") {
+      startTimer(data.startTime);
     }
 
+    /* ✅ STOP TIMER ON SUBMIT */
     if (data?.examEnded === true) {
       stopTimer();
 
-      const end = Date.now();
-      const start = startTimestampRef.current ?? end;
-      const usedSeconds = Math.floor((end - start) / 1000);
+      const usedSeconds = elapsedSeconds;
 
       const subject = data?.subject ?? "Exam";
       const chapters = data?.chapters ?? [];

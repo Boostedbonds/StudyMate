@@ -14,23 +14,25 @@ type StudentContext = {
 };
 
 type ExamSession = {
-  status: "IDLE" | "READY" | "IN_EXAM";
+  status: "IDLE" | "AWAITING_START" | "IN_EXAM";
   subjectRequest?: string;
   questionPaper?: string;
   answers: string[];
   startedAt?: number;
+  durationMinutes?: number;
 };
 
 /* ================= GLOBAL CONTEXT ================= */
 
 const GLOBAL_CONTEXT = `
-You are StudyMate, aligned strictly to:
+You are StudyMate, strictly aligned to:
 - NCERT textbooks
 - Official CBSE syllabus
 - CBSE board exam pattern
 
-Always adapt explanation strictly by student's class.
+You always adapt explanations strictly by the student's class.
 Never go outside CBSE scope.
+Never guess the class.
 `;
 
 /* ================= MODE PROMPTS ================= */
@@ -38,32 +40,30 @@ Never go outside CBSE scope.
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
 
-ROLE:
-You are a real CBSE classroom teacher.
-
-RULES:
-- Student name and class are already known. Do NOT ask again.
-- Answer ONLY NCERT / CBSE syllabus related queries.
-- If student asks non-academic question, politely refuse.
-- Explain clearly according to student's class.
-- Structured CBSE-style explanation.
-- After proper explanation, ask exactly 2 short revision questions.
-- If student is correcting you, acknowledge and fix immediately.
+Rules:
+- Student name and class are already provided in system context.
+- NEVER ask for class again.
+- NEVER guess class.
+- Answer clearly according to the student's exact class syllabus.
+- If question is NCERT/CBSE related → answer properly.
+- If question is not related to NCERT/CBSE curriculum → politely refuse.
+- Classroom tone.
+- After explanation, ask exactly 2 short revision questions.
 `;
 
 const ORAL_PROMPT = `
 You are in ORAL MODE.
-
 - Student name and class already known.
-- Keep answers short and conversational.
-- Strictly NCERT / CBSE aligned.
-- Do NOT ask for class again.
+- Never ask class again.
+- Conversational classroom style.
+- Strictly NCERT/CBSE syllabus aligned.
+- Short, interactive responses.
 `;
 
 const PROGRESS_PROMPT = `
 You are generating a concise CBSE-style academic performance summary.
 Maximum 6 lines.
-Professional tone.
+Professional school report tone.
 `;
 
 const EXAMINER_PROMPT = `
@@ -194,6 +194,12 @@ export async function POST(req: NextRequest) {
 
     const lower = message.toLowerCase().trim();
 
+    const studentContext = `
+Student Name: ${student?.name ?? "Student"}
+Class: ${student?.class ?? "Not specified"}
+Board: CBSE
+`;
+
     const fullConversation: ChatMessage[] = [
       ...history,
       { role: "user", content: message },
@@ -203,9 +209,9 @@ export async function POST(req: NextRequest) {
 
     if (mode === "examiner") {
       const key = getSessionKey(student);
-      const existing = examSessions.get(key);
-      const session: ExamSession =
-        existing ?? { status: "IDLE", answers: [] };
+      const session =
+        examSessions.get(key) ??
+        { status: "IDLE", answers: [] as string[] };
 
       const greetingLine = `Hi ${student?.name ?? "Student"} of Class ${student?.class ?? "?"}. Please tell me the subject and chapters for your test.`;
 
@@ -217,44 +223,17 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
-      /* ---- SUBMIT ---- */
+      /* ===== SUBMIT ===== */
 
       if (isSubmit && session.status === "IN_EXAM") {
-        let questionPaper = session.questionPaper ?? "";
-        let answers = session.answers ?? [];
-
-        if (!questionPaper) {
-          questionPaper = fullConversation
-            .filter((m) => m.role === "assistant")
-            .map((m) => m.content ?? "")
-            .join("\n\n");
-
-          answers = fullConversation
-            .filter((m) => m.role === "user")
-            .map((m) => m.content ?? "")
-            .filter(
-              (m) =>
-                !["submit", "done", "finished", "finish", "end test"].includes(
-                  m.toLowerCase().trim()
-                )
-            );
-        }
-
-        if (!questionPaper || answers.length === 0) {
-          return NextResponse.json({
-            reply:
-              "Unable to locate question paper or answers. Please resend your answers.",
-          });
-        }
-
         const evaluationPrompt = `
 Evaluate this answer sheet.
 
 QUESTION PAPER:
-${questionPaper}
+${session.questionPaper ?? ""}
 
 STUDENT ANSWERS:
-${answers.join("\n\n")}
+${session.answers.join("\n\n")}
 `;
 
         const resultText = await callGemini(
@@ -271,7 +250,7 @@ ${answers.join("\n\n")}
         return NextResponse.json({ reply: resultText });
       }
 
-      /* ---- COLLECT ANSWERS SILENTLY ---- */
+      /* ===== COLLECT ANSWERS ===== */
 
       if (session.status === "IN_EXAM") {
         session.answers.push(message);
@@ -279,28 +258,9 @@ ${answers.join("\n\n")}
         return NextResponse.json({ reply: "" });
       }
 
-      /* ---- SUBJECT DETECTED → WAIT FOR START ---- */
+      /* ===== START COMMAND ===== */
 
-      if (looksLikeSubjectRequest(lower) && session.status === "IDLE") {
-        examSessions.set(key, {
-          status: "READY",
-          subjectRequest: message,
-          answers: [],
-        });
-
-        return NextResponse.json({
-          reply:
-            "Subject noted. Type START to begin your exam.",
-        });
-      }
-
-      /* ---- START COMMAND ---- */
-
-      if (lower === "start" && session.status === "READY") {
-        const duration = calculateDurationMinutes(
-          session.subjectRequest ?? ""
-        );
-
+      if (lower === "start" && session.status === "AWAITING_START") {
         const paper = await callGemini(
           [
             { role: "system", content: GLOBAL_CONTEXT },
@@ -311,7 +271,7 @@ Generate a NEW CBSE question paper.
 
 Class: ${student?.class ?? ""}
 Topic: ${session.subjectRequest}
-Time Allowed: ${duration} minutes
+Time Allowed: ${session.durationMinutes} minutes
 
 Follow CBSE board pattern strictly.
 Mention Total Marks.
@@ -321,50 +281,71 @@ Mention Total Marks.
           0.7
         );
 
-        examSessions.set(key, {
-          status: "IN_EXAM",
-          subjectRequest: session.subjectRequest,
-          questionPaper: paper,
-          answers: [],
-          startedAt: Date.now(),
-        });
+        session.status = "IN_EXAM";
+        session.questionPaper = paper;
+        session.startedAt = Date.now();
+
+        examSessions.set(key, session);
 
         return NextResponse.json({ reply: paper });
+      }
+
+      /* ===== SUBJECT INPUT ===== */
+
+      if (looksLikeSubjectRequest(lower)) {
+        const duration = calculateDurationMinutes(message);
+
+        examSessions.set(key, {
+          status: "AWAITING_START",
+          subjectRequest: message,
+          durationMinutes: duration,
+          answers: [],
+        });
+
+        return NextResponse.json({
+          reply: `Subject noted. Type START to begin your exam.`,
+        });
       }
 
       return NextResponse.json({ reply: greetingLine });
     }
 
-    /* ================= TEACHER ================= */
+    /* ================= TEACHER MODE ================= */
 
     if (mode === "teacher") {
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: TEACHER_PROMPT },
+        { role: "system", content: studentContext },
         ...fullConversation,
       ]);
+
       return NextResponse.json({ reply });
     }
 
-    /* ================= ORAL ================= */
+    /* ================= ORAL MODE ================= */
 
     if (mode === "oral") {
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: ORAL_PROMPT },
+        { role: "system", content: studentContext },
         ...fullConversation,
       ]);
+
       return NextResponse.json({ reply });
     }
 
-    /* ================= PROGRESS ================= */
+    /* ================= PROGRESS MODE ================= */
 
     if (mode === "progress") {
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: PROGRESS_PROMPT },
+        { role: "system", content: studentContext },
         ...fullConversation,
       ]);
+
       return NextResponse.json({ reply });
     }
 
