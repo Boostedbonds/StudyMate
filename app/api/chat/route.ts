@@ -227,6 +227,8 @@ export async function POST(req: NextRequest) {
       const session: ExamSession =
         existing ?? { status: "IDLE", answers: [] };
 
+      const greetingLine = `Hi ${student?.name ?? "Student"} of Class ${student?.class ?? "?"}. Please tell me the subject and chapters for your test.`;
+
       const isSubmit = [
         "submit",
         "done",
@@ -386,13 +388,10 @@ STRICT RULES:
         });
       }
 
-      return NextResponse.json({
-        reply:
-          "Examiner Mode is for conducting tests. Please tell me the subject and chapters for your test.",
-      });
+      return NextResponse.json({ reply: greetingLine });
     }
 
-    /* ================= PROGRESS MODE ================= */
+    /* ================= OTHER MODES UNCHANGED ================= */
 
     if (mode === "progress") {
       const summaryData = attempts
@@ -416,8 +415,6 @@ STRICT RULES:
       return NextResponse.json({ reply });
     }
 
-    /* ================= TEACHER MODE ================= */
-
     if (mode === "teacher") {
       const teacherContext = `
 Student Name: ${student?.name ?? "Student"}
@@ -434,8 +431,6 @@ Board: CBSE
 
       return NextResponse.json({ reply });
     }
-
-    /* ================= ORAL MODE ================= */
 
     if (mode === "oral") {
       const reply = await callGemini([
