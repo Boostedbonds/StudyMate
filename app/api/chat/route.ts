@@ -213,30 +213,17 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
-      if (isSubmit) {
-        let questionPaper = session.questionPaper ?? "";
-        let answers = session.answers ?? [];
+      /* ---------- SUBMIT ---------- */
 
-        if (!questionPaper) {
-          questionPaper = fullConversation
-            .filter((m) => m.role === "assistant")
-            .map((m) => m.content ?? "")
-            .join("\n\n");
-
-          answers = fullConversation
-            .filter((m) => m.role === "user")
-            .map((m) => m.content ?? "")
-            .filter((m) => m.toLowerCase().trim() !== "submit");
-        }
-
+      if (isSubmit && session.status === "IN_EXAM") {
         const evaluationPrompt = `
 Evaluate this answer sheet.
 
 QUESTION PAPER:
-${questionPaper}
+${session.questionPaper ?? ""}
 
 STUDENT ANSWERS:
-${answers.join("\n\n")}
+${session.answers.join("\n\n")}
 `;
 
         const resultText = await callGemini(
@@ -253,21 +240,17 @@ ${answers.join("\n\n")}
         return NextResponse.json({ reply: resultText });
       }
 
+      /* ---------- COLLECT ANSWERS ---------- */
+
       if (session.status === "IN_EXAM") {
         session.answers.push(message);
         examSessions.set(key, session);
         return NextResponse.json({ reply: "" });
       }
 
-      if (looksLikeSubjectRequest(lower)) {
-        examSessions.set(key, {
-          status: "IN_EXAM",
-          subjectRequest: message,
-          questionPaper: "",
-          answers: [],
-          startedAt: Date.now(),
-        });
+      /* ---------- SUBJECT INPUT ---------- */
 
+      if (looksLikeSubjectRequest(lower)) {
         const duration = calculateDurationMinutes(message);
 
         const paper = await callGemini(
@@ -275,14 +258,27 @@ ${answers.join("\n\n")}
             { role: "system", content: GLOBAL_CONTEXT },
             {
               role: "user",
-              content: `Generate CBSE question paper for Class ${student?.class}. Topic: ${message}. Time: ${duration} minutes.`,
+              content: `
+Generate a NEW CBSE question paper.
+
+Class: ${student?.class ?? ""}
+Topic: ${message}
+Time Allowed: ${duration} minutes
+
+Follow CBSE board pattern strictly.
+`,
             },
           ],
           0.7
         );
 
-        const updated = examSessions.get(key);
-        if (updated) updated.questionPaper = paper;
+        examSessions.set(key, {
+          status: "IN_EXAM",
+          subjectRequest: message,
+          questionPaper: paper,
+          answers: [],
+          startedAt: Date.now(),
+        });
 
         return NextResponse.json({ reply: paper });
       }
@@ -295,7 +291,7 @@ ${answers.join("\n\n")}
     if (mode === "oral") {
       const oralContext = `
 Student Name: ${student?.name ?? "Student"}
-Class: ${student?.class ?? "Not specified"}
+Class: ${student?.class ?? ""}
 Board: CBSE
 `;
 
@@ -314,7 +310,7 @@ Board: CBSE
     if (mode === "teacher") {
       const teacherContext = `
 Student Name: ${student?.name ?? "Student"}
-Class: ${student?.class ?? "Not specified"}
+Class: ${student?.class ?? ""}
 Board: CBSE
 `;
 
