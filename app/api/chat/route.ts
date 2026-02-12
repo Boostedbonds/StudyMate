@@ -14,7 +14,7 @@ type StudentContext = {
 };
 
 type ExamSession = {
-  status: "IDLE" | "IN_EXAM";
+  status: "IDLE" | "READY" | "IN_EXAM";
   subjectRequest?: string;
   questionPaper?: string;
   answers: string[];
@@ -37,19 +37,27 @@ Never go outside CBSE scope.
 
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
-IMPORTANT:
-- Student name and class are already collected.
-- NEVER ask class or name again.
-Explain clearly.
-Stay strictly CBSE.
-Ask exactly 2 revision questions.
+
+ROLE:
+You are a real CBSE classroom teacher.
+
+RULES:
+- Student name and class are already known. Do NOT ask again.
+- Answer ONLY NCERT / CBSE syllabus related queries.
+- If student asks non-academic question, politely refuse.
+- Explain clearly according to student's class.
+- Structured CBSE-style explanation.
+- After proper explanation, ask exactly 2 short revision questions.
+- If student is correcting you, acknowledge and fix immediately.
 `;
 
 const ORAL_PROMPT = `
 You are in ORAL MODE.
-- Student name & class already known.
-- Never ask class again.
+
+- Student name and class already known.
 - Keep answers short and conversational.
+- Strictly NCERT / CBSE aligned.
+- Do NOT ask for class again.
 `;
 
 const PROGRESS_PROMPT = `
@@ -60,6 +68,7 @@ Professional tone.
 
 const EXAMINER_PROMPT = `
 You are in EXAMINER MODE.
+
 Return STRICT JSON ONLY:
 
 {
@@ -179,9 +188,10 @@ export async function POST(req: NextRequest) {
         : [];
 
     const message: string =
-  body?.message ??
-  history.filter((m) => m.role === "user").pop()?.content ??
-  "";
+      body?.message ??
+      history.filter((m) => m.role === "user").pop()?.content ??
+      "";
+
     const lower = message.toLowerCase().trim();
 
     const fullConversation: ChatMessage[] = [
@@ -207,12 +217,12 @@ export async function POST(req: NextRequest) {
         "end test",
       ].includes(lower);
 
-      /* 🔥 LONG EXAM SAFE SUBMIT */
-      if (isSubmit) {
+      /* ---- SUBMIT ---- */
+
+      if (isSubmit && session.status === "IN_EXAM") {
         let questionPaper = session.questionPaper ?? "";
         let answers = session.answers ?? [];
 
-        // 🔥 Reconstruction if memory lost
         if (!questionPaper) {
           questionPaper = fullConversation
             .filter((m) => m.role === "assistant")
@@ -261,16 +271,35 @@ ${answers.join("\n\n")}
         return NextResponse.json({ reply: resultText });
       }
 
-      /* IN EXAM */
+      /* ---- COLLECT ANSWERS SILENTLY ---- */
+
       if (session.status === "IN_EXAM") {
         session.answers.push(message);
         examSessions.set(key, session);
         return NextResponse.json({ reply: "" });
       }
 
-      /* SUBJECT INPUT */
-      if (looksLikeSubjectRequest(lower)) {
-        const duration = calculateDurationMinutes(message);
+      /* ---- SUBJECT DETECTED → WAIT FOR START ---- */
+
+      if (looksLikeSubjectRequest(lower) && session.status === "IDLE") {
+        examSessions.set(key, {
+          status: "READY",
+          subjectRequest: message,
+          answers: [],
+        });
+
+        return NextResponse.json({
+          reply:
+            "Subject noted. Type START to begin your exam.",
+        });
+      }
+
+      /* ---- START COMMAND ---- */
+
+      if (lower === "start" && session.status === "READY") {
+        const duration = calculateDurationMinutes(
+          session.subjectRequest ?? ""
+        );
 
         const paper = await callGemini(
           [
@@ -281,7 +310,7 @@ ${answers.join("\n\n")}
 Generate a NEW CBSE question paper.
 
 Class: ${student?.class ?? ""}
-Topic: ${message}
+Topic: ${session.subjectRequest}
 Time Allowed: ${duration} minutes
 
 Follow CBSE board pattern strictly.
@@ -294,7 +323,7 @@ Mention Total Marks.
 
         examSessions.set(key, {
           status: "IN_EXAM",
-          subjectRequest: message,
+          subjectRequest: session.subjectRequest,
           questionPaper: paper,
           answers: [],
           startedAt: Date.now(),
