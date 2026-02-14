@@ -39,8 +39,12 @@ export default function HomePage() {
     };
 
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
-    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/; SameSite=Lax`;
-    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_name=${encodeURIComponent(
+      studentContext.name
+    )}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_class=${encodeURIComponent(
+      studentContext.class
+    )}; path=/; SameSite=Lax`;
 
     setTimeout(() => {
       window.location.href = "/modes";
@@ -89,46 +93,6 @@ export default function HomePage() {
               }}
               animate={{ opacity: [0.6, 1, 0.6] }}
               transition={{ duration: 8, repeat: Infinity }}
-            />
-
-            <svg
-              viewBox="0 0 1440 800"
-              preserveAspectRatio="none"
-              style={{
-                position: "absolute",
-                bottom: 0,
-                width: "100%",
-                height: "75%",
-              }}
-            >
-              <path
-                d="M0,640 C200,600 350,580 550,560 C750,540 950,570 1440,620 L1440,800 L0,800 Z"
-                fill="#061a2d"
-              />
-              <path
-                d="M0,700 C200,650 400,620 600,600 C700,580 760,550 820,600 C1000,650 1200,680 1440,710 L1440,800 L0,800 Z"
-                fill="#04121f"
-              />
-              <path
-                d="M0,730 
-                   C200,690 400,660 620,620 
-                   C680,590 710,550 720,500
-                   C730,550 760,590 820,620
-                   C1000,660 1200,700 1440,720 
-                   L1440,800 L0,800 Z"
-                fill="#000000"
-              />
-            </svg>
-
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                backgroundImage:
-                  "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"noise\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"2\" stitchTiles=\"stitch\"/></filter><rect width=\"100%\" height=\"100%\" filter=\"url(%23noise)\" opacity=\"0.03\"/></svg>')",
-                mixBlendMode: "overlay",
-                pointerEvents: "none",
-              }}
             />
 
             <motion.div
@@ -206,179 +170,46 @@ export default function HomePage() {
             overflow: "hidden",
           }}
         >
-          {/* Enhanced Glow */}
           <div
             style={{
               position: "absolute",
-              top: "12%",
-              width: "800px",
-              height: "450px",
+              top: "8%",
+              width: "900px",
+              height: "500px",
               background:
-                "radial-gradient(circle, rgba(212,175,55,0.35) 0%, rgba(212,175,55,0.15) 40%, transparent 70%)",
-              filter: "blur(130px)",
+                "radial-gradient(circle, rgba(212,175,55,0.45) 0%, rgba(212,175,55,0.2) 35%, transparent 70%)",
+              filter: "blur(140px)",
               pointerEvents: "none",
             }}
           />
 
-          <div style={{ textAlign: "center", marginBottom: 50 }}>
-            <h1
-              style={{
-                fontSize: "46px",
-                letterSpacing: "0.35em",
-                fontWeight: 700,
-                color: "#1e293b",
-                fontFamily: "Georgia, serif",
-              }}
-            >
-              SHAURI
-            </h1>
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <svg width="420" height="190" viewBox="0 0 800 350">
+              <defs>
+                <linearGradient id="goldMain" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#F8E7B5" />
+                  <stop offset="45%" stopColor="#D4AF37" />
+                  <stop offset="100%" stopColor="#B8891E" />
+                </linearGradient>
+              </defs>
 
-            {/* Mountain Logo Element */}
-            <div style={{ marginTop: 18, marginBottom: 18 }}>
-              <svg
-                width="240"
-                height="70"
-                viewBox="0 0 300 120"
-                fill="none"
+              <path
+                d="M120 220 L300 160 L400 80 L500 160 L680 220"
+                stroke="url(#goldMain)"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              <text
+                x="50%"
+                y="295"
+                textAnchor="middle"
+                fontFamily="Georgia, serif"
+                fontSize="90"
+                letterSpacing="18"
+                fill="url(#goldMain)"
               >
-                <defs>
-                  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#F5E6B2" />
-                    <stop offset="50%" stopColor="#D4AF37" />
-                    <stop offset="100%" stopColor="#B68A2E" />
-                  </linearGradient>
-
-                  <filter id="mountainGlow">
-                    <feGaussianBlur stdDeviation="2" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-
-                <path
-                  d="M20 95 L110 60 L150 35 L190 60 L280 95"
-                  stroke="url(#gold)"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter="url(#mountainGlow)"
-                />
-              </svg>
-            </div>
-
-            <p
-              style={{
-                marginTop: 10,
-                fontSize: "14px",
-                letterSpacing: "0.15em",
-                color: "#475569",
-              }}
-            >
-              Aligned. Adaptive. Guiding Excellence.
-            </p>
-
-            <p
-              style={{
-                marginTop: 18,
-                fontSize: "13px",
-                color: "#64748b",
-              }}
-            >
-              CBSE-Aligned Learning Platform.
-            </p>
-          </div>
-
-          <motion.form
-            onSubmit={handleSubmit}
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8 }}
-            style={{
-              display: "grid",
-              gap: 18,
-              width: "380px",
-              padding: 28,
-              borderRadius: 18,
-              backdropFilter: "blur(10px)",
-              background: "rgba(255,255,255,0.75)",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.08)",
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Student Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={inputStyle}
-            />
-
-            <select
-              value={studentClass}
-              onChange={(e) => setStudentClass(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="">Select Class</option>
-              {[6, 7, 8, 9, 10, 11, 12].map((cls) => (
-                <option key={cls} value={cls}>
-                  Class {cls}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="password"
-              placeholder="Access Code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              style={inputStyle}
-            />
-
-            {error && (
-              <div style={{ color: "#dc2626", fontSize: 13 }}>{error}</div>
-            )}
-
-            <motion.button
-              type="submit"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                border: "none",
-                background:
-                  "linear-gradient(to right, #D4AF37, #C89B2B)",
-                color: "#1e293b",
-                fontWeight: 600,
-                cursor: "pointer",
-                boxShadow: "0 10px 30px rgba(212,175,55,0.45)",
-              }}
-            >
-              FORGE YOUR EDGE
-            </motion.button>
-          </motion.form>
-
-          <p
-            style={{
-              marginTop: 28,
-              fontSize: 11,
-              letterSpacing: "0.2em",
-              color: "#94a3b8",
-            }}
-          >
-            Crafted for Focused Minds.
-          </p>
-        </div>
-      )}
-    </>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  padding: 14,
-  borderRadius: 12,
-  border: "1px solid #e2e8f0",
-  background: "rgba(255,255,255,0.9)",
-  fontSize: 14,
-};
+                SHAURI
+              </text>
+            </
