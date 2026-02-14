@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "../../lib/supabase";
 
 /* ================= TYPES ================= */
 
@@ -11,15 +12,6 @@ type StudentContext = {
   name?: string;
   class?: string;
   board?: string;
-};
-
-type ExamSession = {
-  status: "IDLE" | "AWAITING_START" | "IN_EXAM";
-  subjectRequest?: string;
-  questionPaper?: string;
-  answers: string[];
-  startedAt?: number;
-  durationMinutes?: number;
 };
 
 /* ================= GLOBAL CONTEXT ================= */
@@ -85,15 +77,6 @@ Return STRICT JSON ONLY:
 No markdown.
 Pure JSON only.
 `;
-
-/* ================= SESSION STORE ================= */
-
-const examSessions = new Map<string, ExamSession>();
-
-function getSessionKey(student?: StudentContext) {
-  if (!student?.name) return "anonymous";
-  return `${student.name}_${student.class ?? "unknown"}`;
-}
 
 /* ================= HELPERS ================= */
 
@@ -193,12 +176,29 @@ Board: CBSE
     /* ================= EXAMINER ================= */
 
     if (mode === "examiner") {
-      const key = getSessionKey(student);
-      const session =
-        examSessions.get(key) ??
-        { status: "IDLE", answers: [] as string[] };
 
-      const greetingLine = `Hi ${student?.name ?? "Student"} of Class ${student?.class ?? "?"}. Please tell me the subject and chapters for your test.`;
+      // 1️⃣ Ensure student exists
+      const { data: studentRow } = await supabase
+        .from("students")
+        .select("id")
+        .eq("name", student?.name ?? "")
+        .eq("class", student?.class ?? "")
+        .single();
+
+      if (!studentRow) {
+        return NextResponse.json({
+          reply: "Student not registered."
+        });
+      }
+
+      const studentId = studentRow.id;
+
+      // 2️⃣ Get active session
+      const { data: existingSession } = await supabase
+        .from("exam_sessions")
+        .select("*")
+        .eq("student_id", studentId)
+        .single();
 
       const isSubmit = [
         "submit","done","finished","finish","end test"
@@ -206,25 +206,10 @@ Board: CBSE
 
       /* ===== SUBMIT ===== */
 
-      if (isSubmit && session.status === "IN_EXAM") {
-        let questionPaper = session.questionPaper ?? "";
-        let answers = session.answers ?? [];
+      if (isSubmit && existingSession?.status === "IN_EXAM") {
 
-        if (!questionPaper) {
-          questionPaper = fullConversation
-            .filter((m) => m.role === "assistant")
-            .map((m) => m.content)
-            .join("\n\n");
-
-          answers = fullConversation
-            .filter((m) => m.role === "user")
-            .map((m) => m.content)
-            .filter(
-              (m) =>
-                !["submit","done","finished","finish","end test"]
-                  .includes(m.toLowerCase().trim())
-            );
-        }
+        const questionPaper = existingSession.question_paper ?? "";
+        const answers = existingSession.answers ?? [];
 
         const evaluationPrompt = `
 Evaluate this answer sheet.
@@ -254,10 +239,30 @@ ${answers.join("\n\n")}
             ? Math.round((marksObtained / totalMarks) * 100)
             : 0;
 
-        const subjectText = session.subjectRequest ?? "Exam";
+        const subjectText = existingSession.subject_request ?? "Exam";
         const chapters = subjectText.match(/\b\d+\b/g) ?? [];
 
-        examSessions.delete(key);
+        // Save attempt
+        await supabase.from("exam_attempts").insert([
+          {
+            student_id: studentId,
+            subject: subjectText,
+            chapters,
+            raw_answer: answers.join("\n\n"),
+            score_percent: percentage,
+            feedback: parsed?.detailedEvaluation ?? resultText,
+            time_taken_seconds:
+              existingSession.started_at
+                ? Math.floor((Date.now() - existingSession.started_at) / 1000)
+                : null,
+          },
+        ]);
+
+        // Delete session
+        await supabase
+          .from("exam_sessions")
+          .delete()
+          .eq("student_id", studentId);
 
         return NextResponse.json({
           reply: parsed?.detailedEvaluation ?? resultText,
@@ -272,15 +277,25 @@ ${answers.join("\n\n")}
 
       /* ===== IN EXAM ===== */
 
-      if (session.status === "IN_EXAM") {
-        session.answers.push(message);
-        examSessions.set(key, session);
+      if (existingSession?.status === "IN_EXAM") {
+
+        const updatedAnswers = [
+          ...(existingSession.answers ?? []),
+          message,
+        ];
+
+        await supabase
+          .from("exam_sessions")
+          .update({ answers: updatedAnswers })
+          .eq("student_id", studentId);
+
         return NextResponse.json({ reply: "" });
       }
 
       /* ===== START ===== */
 
-      if (lower === "start" && session.status === "AWAITING_START") {
+      if (lower === "start" && existingSession?.status === "AWAITING_START") {
+
         const now = Date.now();
 
         const paper = await callGemini(
@@ -292,8 +307,8 @@ ${answers.join("\n\n")}
 Generate a NEW CBSE question paper.
 
 Class: ${student?.class ?? ""}
-Topic: ${session.subjectRequest}
-Time Allowed: ${session.durationMinutes} minutes
+Topic: ${existingSession.subject_request}
+Time Allowed: ${existingSession.duration_minutes} minutes
 Follow CBSE board pattern strictly.
 Mention Total Marks.
 `,
@@ -302,39 +317,49 @@ Mention Total Marks.
           0.7
         );
 
-        session.status = "IN_EXAM";
-        session.questionPaper = paper;
-        session.startedAt = now;
-        examSessions.set(key, session);
+        await supabase
+          .from("exam_sessions")
+          .update({
+            status: "IN_EXAM",
+            question_paper: paper,
+            started_at: now,
+          })
+          .eq("student_id", studentId);
 
         return NextResponse.json({
           reply: paper,
           startTime: now,
-          durationMinutes: session.durationMinutes,
+          durationMinutes: existingSession.duration_minutes,
         });
       }
 
       /* ===== SUBJECT ===== */
 
       if (looksLikeSubjectRequest(lower)) {
+
         const duration = calculateDurationMinutes(message);
 
-        examSessions.set(key, {
-          status: "AWAITING_START",
-          subjectRequest: message,
-          durationMinutes: duration,
-          answers: [],
-        });
+        await supabase
+          .from("exam_sessions")
+          .upsert({
+            student_id: studentId,
+            status: "AWAITING_START",
+            subject_request: message,
+            duration_minutes: duration,
+            answers: [],
+          });
 
         return NextResponse.json({
           reply: `Subject noted. Type START to begin your exam.`,
         });
       }
 
-      return NextResponse.json({ reply: greetingLine });
+      return NextResponse.json({
+        reply: `Hi ${student?.name ?? "Student"} of Class ${student?.class ?? "?"}. Please tell me the subject and chapters for your test.`
+      });
     }
 
-    /* ================= TEACHER ================= */
+    /* ================= OTHER MODES (UNCHANGED) ================= */
 
     if (mode === "teacher") {
       const reply = await callGemini([
@@ -346,8 +371,6 @@ Mention Total Marks.
       return NextResponse.json({ reply });
     }
 
-    /* ================= ORAL ================= */
-
     if (mode === "oral") {
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
@@ -357,8 +380,6 @@ Mention Total Marks.
       ]);
       return NextResponse.json({ reply });
     }
-
-    /* ================= PROGRESS ================= */
 
     if (mode === "progress") {
       const reply = await callGemini([
@@ -371,6 +392,7 @@ Mention Total Marks.
     }
 
     return NextResponse.json({ reply: "Invalid mode." });
+
   } catch {
     return NextResponse.json(
       { reply: "AI server error. Please try again." },
