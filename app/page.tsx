@@ -39,12 +39,8 @@ export default function HomePage() {
     };
 
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
-    document.cookie = `shauri_name=${encodeURIComponent(
-      studentContext.name
-    )}; path=/; SameSite=Lax`;
-    document.cookie = `shauri_class=${encodeURIComponent(
-      studentContext.class
-    )}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/; SameSite=Lax`;
 
     setTimeout(() => {
       window.location.href = "/modes";
@@ -65,8 +61,7 @@ export default function HomePage() {
             style={{
               position: "fixed",
               inset: 0,
-              background:
-                "radial-gradient(circle at center, #0b1d33 0%, #071426 60%, #020812 100%)",
+              background: "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
               overflow: "hidden",
               display: "flex",
               alignItems: "center",
@@ -79,24 +74,24 @@ export default function HomePage() {
             transition={{ duration: 1.2 }}
             onClick={handleEnter}
           >
-            {/* Dawn Glow Behind Peak */}
+            {/* Summit Glow */}
             <motion.div
               style={{
                 position: "absolute",
                 bottom: "42%",
                 left: "50%",
                 transform: "translateX(-50%)",
-                width: "1200px",
-                height: "800px",
+                width: "800px",
+                height: "500px",
                 background:
-                  "radial-gradient(circle at center, rgba(255,210,120,0.35), transparent 70%)",
+                  "radial-gradient(circle at center, rgba(255,210,120,0.4), transparent 70%)",
                 filter: "blur(120px)",
               }}
               animate={{ opacity: [0.6, 1, 0.6] }}
               transition={{ duration: 8, repeat: Infinity }}
             />
 
-            {/* Mountain Layers */}
+            {/* Real Mountain Layers */}
             <svg
               viewBox="0 0 1440 800"
               preserveAspectRatio="none"
@@ -107,28 +102,26 @@ export default function HomePage() {
                 height: "75%",
               }}
             >
-              {/* Far */}
+              {/* Far Mountain */}
               <path
-                d="M0,640 C300,580 500,560 720,580 C900,600 1100,620 1440,600 L1440,800 L0,800 Z"
-                fill="#081b2e"
+                d="M0,640 C200,600 350,580 550,560 C750,540 950,570 1440,620 L1440,800 L0,800 Z"
+                fill="#061a2d"
               />
 
-              {/* Mid */}
+              {/* Mid Mountain */}
               <path
-                d="M0,690 C300,650 500,620 720,640 C900,660 1100,690 1440,700 L1440,800 L0,800 Z"
-                fill="#051423"
+                d="M0,700 C200,650 400,620 600,600 C700,580 760,550 820,600 C1000,650 1200,680 1440,710 L1440,800 L0,800 Z"
+                fill="#04121f"
               />
 
-              {/* Main Foreground Peak */}
+              {/* Foreground Peak */}
               <path
-                d="
-                M0,740
-                C200,700 400,670 600,650
-                C650,640 700,600 720,540
-                C740,600 790,640 860,660
-                C1000,700 1200,720 1440,730
-                L1440,800 L0,800 Z
-              "
+                d="M0,730 
+                   C200,690 400,660 620,620 
+                   C680,590 710,550 720,500
+                   C730,550 760,590 820,620
+                   C1000,660 1200,700 1440,720 
+                   L1440,800 L0,800 Z"
                 fill="#000000"
               />
             </svg>
@@ -139,7 +132,7 @@ export default function HomePage() {
                 position: "absolute",
                 inset: 0,
                 backgroundImage:
-                  "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"noise\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"2\" stitchTiles=\"stitch\"/></filter><rect width=\"100%\" height=\"100%\" filter=\"url(%23noise)\" opacity=\"0.04\"/></svg>')",
+                  "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"noise\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"2\" stitchTiles=\"stitch\"/></filter><rect width=\"100%\" height=\"100%\" filter=\"url(%23noise)\" opacity=\"0.03\"/></svg>')",
                 mixBlendMode: "overlay",
                 pointerEvents: "none",
               }}
@@ -155,9 +148,9 @@ export default function HomePage() {
               <h1
                 style={{
                   fontSize: "64px",
-                  letterSpacing: "0.45em",
-                  color: "#E6B65C",
+                  letterSpacing: "0.5em",
                   fontWeight: 700,
+                  color: "#D4AF37",
                   fontFamily: "Georgia, serif",
                 }}
               >
@@ -177,10 +170,10 @@ export default function HomePage() {
 
               <motion.p
                 style={{
-                  marginTop: 32,
+                  marginTop: 28,
                   fontSize: "12px",
-                  letterSpacing: "0.35em",
-                  color: "#E6B65C",
+                  letterSpacing: "0.3em",
+                  color: "#D4AF37",
                 }}
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ repeat: Infinity, duration: 2 }}
@@ -189,7 +182,6 @@ export default function HomePage() {
               </motion.p>
             </motion.div>
 
-            {/* Warp */}
             {warp && (
               <motion.div
                 style={{
@@ -217,19 +209,17 @@ export default function HomePage() {
             justifyContent: "center",
             background:
               "linear-gradient(to bottom, #FFF4D6 0%, #EAF3FF 55%, #F8FAFC 100%)",
-            position: "relative",
             padding: "40px 20px",
           }}
         >
-          {/* Branding */}
-          <div style={{ textAlign: "center", marginBottom: 60 }}>
+          <div style={{ textAlign: "center", marginBottom: 50 }}>
             <h1
               style={{
-                fontSize: 44,
+                fontSize: "44px",
                 letterSpacing: "0.3em",
                 fontWeight: 700,
-                fontFamily: "Georgia, serif",
                 color: "#1e293b",
+                fontFamily: "Georgia, serif",
               }}
             >
               SHAURI
@@ -238,7 +228,7 @@ export default function HomePage() {
             <p
               style={{
                 marginTop: 14,
-                fontSize: 14,
+                fontSize: "14px",
                 letterSpacing: "0.15em",
                 color: "#475569",
               }}
@@ -246,19 +236,20 @@ export default function HomePage() {
               Aligned. Adaptive. Guiding Excellence.
             </p>
 
-            <p style={{ marginTop: 18, fontSize: 13, color: "#64748b" }}>
-              CBSE Aligned Learning Platform
+            <p
+              style={{
+                marginTop: 18,
+                fontSize: "13px",
+                color: "#475569",
+              }}
+            >
+              CBSE-Aligned Learning Platform.
             </p>
           </div>
 
-          {/* Form */}
           <form
             onSubmit={handleSubmit}
-            style={{
-              display: "grid",
-              gap: 18,
-              width: 360,
-            }}
+            style={{ display: "grid", gap: 18, width: "360px" }}
           >
             <input
               type="text"
@@ -311,7 +302,7 @@ export default function HomePage() {
                 padding: 14,
                 borderRadius: 10,
                 border: "none",
-                background: "linear-gradient(to right, #F6C56F, #E8A93B)",
+                background: "linear-gradient(to right, #D4AF37, #C89B2B)",
                 color: "#1e293b",
                 fontWeight: 600,
                 cursor: "pointer",
