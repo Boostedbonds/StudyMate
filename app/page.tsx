@@ -6,11 +6,30 @@ export default function Home() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(circle at center, #0d2a4a 0%, #081f36 60%, #061728 100%)",
+        background:
+          "radial-gradient(circle at center, #0d2a4a 0%, #081f36 60%, #061728 100%)",
         flexDirection: "column",
         textAlign: "center",
+        position: "relative",
       }}
     >
+      {/* Mountain */}
+      <svg
+        width="260"
+        height="140"
+        viewBox="0 0 260 140"
+        fill="none"
+        style={{ marginBottom: "20px" }}
+      >
+        <path
+          d="M20 120 L90 60 L120 80 L140 50 L200 120 Z"
+          stroke="#d4af37"
+          strokeWidth="3"
+          fill="none"
+        />
+      </svg>
+
+      {/* SHAURI */}
       <h1
         style={{
           fontSize: "64px",
