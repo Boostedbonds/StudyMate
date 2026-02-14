@@ -134,6 +134,7 @@ async function callGemini(messages: ChatMessage[], temperature = 0.2) {
   );
 
   const data = await res.json();
+
   return (
     data?.candidates?.[0]?.content?.parts?.[0]?.text ??
     "Unable to generate response."
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const mode: string = body?.mode ?? "";
 
-    /* ================= COOKIE FALLBACK FIX ================= */
+    /* ================= COOKIE FALLBACK ================= */
 
     let student: StudentContext | undefined = body?.student;
 
@@ -163,6 +164,8 @@ export async function POST(req: NextRequest) {
         };
       }
     }
+
+    /* ================= CHAT HISTORY ================= */
 
     const history: ChatMessage[] =
       Array.isArray(body?.history)
@@ -189,32 +192,41 @@ Board: CBSE
       { role: "user", content: message },
     ];
 
-    /* ================= AUTO REGISTER STUDENT ================= */
+    /* ================= AUTO REGISTER STUDENT (FIXED) ================= */
 
     let studentId: string | null = null;
 
     if (student?.name && student?.class) {
-      const { data: existing } = await supabase
+
+      const { data: existingRows, error: selectError } = await supabase
         .from("students")
         .select("id")
         .eq("name", student.name)
-        .eq("class", student.class)
-        .single();
+        .eq("class", student.class);
 
-      if (!existing) {
-        const { data: inserted } = await supabase
+      if (selectError) {
+        console.error("Student select error:", selectError);
+      }
+
+      if (existingRows && existingRows.length > 0) {
+        studentId = existingRows[0].id;
+      } else {
+        const { data: insertedRows, error: insertError } = await supabase
           .from("students")
           .insert({
             name: student.name,
             class: student.class,
             board: "CBSE",
           })
-          .select("id")
-          .single();
+          .select("id");
 
-        studentId = inserted?.id ?? null;
-      } else {
-        studentId = existing.id;
+        if (insertError) {
+          console.error("Student insert error:", insertError);
+        }
+
+        if (insertedRows && insertedRows.length > 0) {
+          studentId = insertedRows[0].id;
+        }
       }
     }
 
@@ -230,7 +242,7 @@ Board: CBSE
         .from("exam_sessions")
         .select("*")
         .eq("student_id", studentId)
-        .single();
+        .maybeSingle();
 
       const isSubmit = [
         "submit","done","finished","finish","end test"
@@ -423,7 +435,8 @@ Mention Total Marks.
 
     return NextResponse.json({ reply: "Invalid mode." });
 
-  } catch {
+  } catch (err) {
+    console.error("API ERROR:", err);
     return NextResponse.json(
       { reply: "AI server error. Please try again." },
       { status: 500 }
