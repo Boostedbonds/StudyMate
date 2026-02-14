@@ -54,15 +54,13 @@ export default function HomePage() {
 
   return (
     <>
-      {/* ================= INTRO SCREEN ================= */}
       <AnimatePresence>
         {!entered && (
           <motion.div
             style={{
               position: "fixed",
               inset: 0,
-              background:
-                "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
+              background: "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
               overflow: "hidden",
               display: "flex",
               alignItems: "center",
@@ -150,7 +148,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ================= ACCESS PAGE ================= */}
       {entered && (
         <div
           style={{
@@ -159,61 +156,53 @@ export default function HomePage() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            background:
-              "linear-gradient(to bottom, #FFF6DE 0%, #EDF4FF 55%, #F8FAFC 100%)",
+            background: "linear-gradient(to bottom, #0B1220, #111827)",
             padding: "40px 20px",
             position: "relative",
             overflow: "hidden",
           }}
         >
-          {/* Soft Morning Glow */}
+          {/* GOLD MOUNTAIN BACKGROUND */}
           <div
             style={{
               position: "absolute",
-              top: "15%",
+              top: "35%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "800px",
+              opacity: 0.12,
+              pointerEvents: "none",
+              zIndex: 0,
+            }}
+          >
+            <svg viewBox="0 0 600 300" width="100%">
+              <path
+                d="M50 250 L200 100 L300 180 L380 120 L550 250"
+                fill="none"
+                stroke="#D4AF37"
+                strokeWidth="4"
+                strokeLinejoin="round"
+              />
+              <circle cx="380" cy="120" r="6" fill="#FFD700" />
+            </svg>
+          </div>
+
+          {/* GOLD GLOW */}
+          <div
+            style={{
+              position: "absolute",
+              top: "35%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
               width: "700px",
               height: "400px",
               background:
-                "radial-gradient(circle, rgba(255,220,150,0.35), transparent 70%)",
+                "radial-gradient(circle, rgba(212,175,55,0.2), transparent 70%)",
               filter: "blur(120px)",
               pointerEvents: "none",
+              zIndex: 0,
             }}
           />
-
-          <div style={{ textAlign: "center", marginBottom: 50 }}>
-            <h1
-              style={{
-                fontSize: "46px",
-                letterSpacing: "0.35em",
-                fontWeight: 700,
-                color: "#1e293b",
-                fontFamily: "Georgia, serif",
-              }}
-            >
-              SHAURI
-            </h1>
-
-            <p
-              style={{
-                marginTop: 14,
-                fontSize: "14px",
-                letterSpacing: "0.15em",
-                color: "#475569",
-              }}
-            >
-              Aligned. Adaptive. Guiding Excellence.
-            </p>
-
-            <p
-              style={{
-                marginTop: 18,
-                fontSize: "13px",
-                color: "#64748b",
-              }}
-            >
-              CBSE-Aligned Learning Platform.
-            </p>
-          </div>
 
           <motion.form
             onSubmit={handleSubmit}
@@ -226,9 +215,9 @@ export default function HomePage() {
               width: "380px",
               padding: 28,
               borderRadius: 18,
-              backdropFilter: "blur(10px)",
-              background: "rgba(255,255,255,0.75)",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.08)",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              zIndex: 2,
             }}
           >
             <input
@@ -261,7 +250,7 @@ export default function HomePage() {
             />
 
             {error && (
-              <div style={{ color: "#dc2626", fontSize: 13 }}>{error}</div>
+              <div style={{ color: "#f87171", fontSize: 13 }}>{error}</div>
             )}
 
             <motion.button
@@ -273,26 +262,14 @@ export default function HomePage() {
                 borderRadius: 12,
                 border: "none",
                 background: "linear-gradient(to right, #D4AF37, #C89B2B)",
-                color: "#1e293b",
+                color: "#0f172a",
                 fontWeight: 600,
                 cursor: "pointer",
-                boxShadow: "0 8px 25px rgba(212,175,55,0.35)",
               }}
             >
               ENTER SHAURI
             </motion.button>
           </motion.form>
-
-          <p
-            style={{
-              marginTop: 28,
-              fontSize: 11,
-              letterSpacing: "0.2em",
-              color: "#94a3b8",
-            }}
-          >
-            Crafted for Focused Minds.
-          </p>
         </div>
       )}
     </>
@@ -302,7 +279,8 @@ export default function HomePage() {
 const inputStyle: React.CSSProperties = {
   padding: 14,
   borderRadius: 12,
-  border: "1px solid #e2e8f0",
-  background: "rgba(255,255,255,0.9)",
+  border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.08)",
+  color: "#ffffff",
   fontSize: 14,
 };
