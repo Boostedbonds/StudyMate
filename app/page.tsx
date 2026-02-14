@@ -54,7 +54,7 @@ export default function HomePage() {
 
   return (
     <>
-      {/* ================= INTRO SCREEN ================= */}
+      {/* ================= INTRO SCREEN (LOCKED) ================= */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -109,12 +109,7 @@ export default function HomePage() {
                 fill="#04121f"
               />
               <path
-                d="M0,730 
-                   C200,690 400,660 620,620 
-                   C680,590 710,550 720,500
-                   C730,550 760,590 820,620
-                   C1000,660 1200,700 1440,720 
-                   L1440,800 L0,800 Z"
+                d="M0,730 C200,690 400,660 620,620 C680,590 710,550 720,500 C730,550 760,590 820,620 C1000,660 1200,700 1440,720 L1440,800 L0,800 Z"
                 fill="#000000"
               />
             </svg>
@@ -178,7 +173,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ================= ACCESS PAGE (Enhanced Only) ================= */}
+      {/* ================= ACCESS PAGE ================= */}
       {entered && (
         <div
           style={{
@@ -188,18 +183,34 @@ export default function HomePage() {
             alignItems: "center",
             justifyContent: "center",
             background:
-              "linear-gradient(to bottom, #0B1220 0%, #0F172A 60%, #111827 100%)",
+              "linear-gradient(to bottom, #FFF3D9 0%, #FFE5B8 35%, #E6F2FF 75%, #F8FAFC 100%)",
             padding: "40px 20px",
             position: "relative",
             overflow: "hidden",
           }}
         >
-          {/* Gold Mountain Transparent Background */}
+          {/* Morning Sun Glow */}
+          <div
+            style={{
+              position: "absolute",
+              top: "30%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "800px",
+              height: "500px",
+              background:
+                "radial-gradient(circle, rgba(255,200,120,0.55) 0%, rgba(255,200,120,0.3) 40%, transparent 70%)",
+              filter: "blur(120px)",
+              pointerEvents: "none",
+            }}
+          />
+
+          {/* Mountain Image (unchanged) */}
           <motion.img
             src="/shauri-hero.png"
             alt="Shauri Background"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.12 }}
+            animate={{ opacity: 0.1 }}
             transition={{ duration: 2 }}
             style={{
               position: "absolute",
@@ -209,61 +220,11 @@ export default function HomePage() {
               width: "900px",
               maxWidth: "90%",
               pointerEvents: "none",
-              filter: "drop-shadow(0 0 40px rgba(212,175,55,0.4))",
+              filter: "drop-shadow(0 0 40px rgba(212,175,55,0.3))",
             }}
           />
 
-          {/* Soft Gold Glow */}
-          <div
-            style={{
-              position: "absolute",
-              top: "38%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "900px",
-              height: "600px",
-              background:
-                "radial-gradient(circle, rgba(212,175,55,0.15), transparent 70%)",
-              filter: "blur(120px)",
-              pointerEvents: "none",
-            }}
-          />
-
-          <div style={{ textAlign: "center", marginBottom: 50, zIndex: 2 }}>
-            <h1
-              style={{
-                fontSize: "46px",
-                letterSpacing: "0.35em",
-                fontWeight: 700,
-                color: "#D4AF37",
-                fontFamily: "Georgia, serif",
-              }}
-            >
-              SHAURI
-            </h1>
-
-            <p
-              style={{
-                marginTop: 14,
-                fontSize: "14px",
-                letterSpacing: "0.15em",
-                color: "#cbd5e1",
-              }}
-            >
-              Aligned. Adaptive. Guiding Excellence.
-            </p>
-
-            <p
-              style={{
-                marginTop: 18,
-                fontSize: "13px",
-                color: "#94a3b8",
-              }}
-            >
-              CBSE-Aligned Learning Platform.
-            </p>
-          </div>
-
+          {/* Access Form (unchanged) */}
           <motion.form
             onSubmit={handleSubmit}
             initial={{ y: 20, opacity: 0 }}
@@ -276,9 +237,9 @@ export default function HomePage() {
               padding: 28,
               borderRadius: 18,
               backdropFilter: "blur(16px)",
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+              background: "rgba(255,255,255,0.7)",
+              border: "1px solid rgba(255,255,255,0.4)",
+              boxShadow: "0 25px 60px rgba(255,180,80,0.25)",
               zIndex: 2,
             }}
           >
@@ -312,7 +273,7 @@ export default function HomePage() {
             />
 
             {error && (
-              <div style={{ color: "#f87171", fontSize: 13 }}>{error}</div>
+              <div style={{ color: "#dc2626", fontSize: 13 }}>{error}</div>
             )}
 
             <motion.button
@@ -324,10 +285,9 @@ export default function HomePage() {
                 borderRadius: 12,
                 border: "none",
                 background: "linear-gradient(to right, #D4AF37, #C89B2B)",
-                color: "#0f172a",
+                color: "#1e293b",
                 fontWeight: 600,
                 cursor: "pointer",
-                boxShadow: "0 8px 25px rgba(212,175,55,0.45)",
               }}
             >
               ENTER SHAURI
@@ -354,8 +314,7 @@ export default function HomePage() {
 const inputStyle: React.CSSProperties = {
   padding: 14,
   borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.2)",
-  background: "rgba(255,255,255,0.08)",
-  color: "#ffffff",
+  border: "1px solid #e2e8f0",
+  background: "rgba(255,255,255,0.9)",
   fontSize: 14,
 };
