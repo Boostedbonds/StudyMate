@@ -74,7 +74,6 @@ export default function HomePage() {
             transition={{ duration: 1.2 }}
             onClick={handleEnter}
           >
-            {/* Summit Glow */}
             <motion.div
               style={{
                 position: "absolute",
@@ -91,7 +90,6 @@ export default function HomePage() {
               transition={{ duration: 8, repeat: Infinity }}
             />
 
-            {/* Real Mountain Layers */}
             <svg
               viewBox="0 0 1440 800"
               preserveAspectRatio="none"
@@ -102,19 +100,14 @@ export default function HomePage() {
                 height: "75%",
               }}
             >
-              {/* Far Mountain */}
               <path
                 d="M0,640 C200,600 350,580 550,560 C750,540 950,570 1440,620 L1440,800 L0,800 Z"
                 fill="#061a2d"
               />
-
-              {/* Mid Mountain */}
               <path
                 d="M0,700 C200,650 400,620 600,600 C700,580 760,550 820,600 C1000,650 1200,680 1440,710 L1440,800 L0,800 Z"
                 fill="#04121f"
               />
-
-              {/* Foreground Peak */}
               <path
                 d="M0,730 
                    C200,690 400,660 620,620 
@@ -126,7 +119,6 @@ export default function HomePage() {
               />
             </svg>
 
-            {/* Grain */}
             <div
               style={{
                 position: "absolute",
@@ -138,7 +130,6 @@ export default function HomePage() {
               }}
             />
 
-            {/* Branding */}
             <motion.div
               style={{ textAlign: "center", position: "relative" }}
               initial={{ y: 40, opacity: 0 }}
@@ -198,7 +189,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ================= ACCESS PAGE ================= */}
+      {/* ================= ACCESS PAGE (Enhanced Only) ================= */}
       {entered && (
         <div
           style={{
@@ -208,15 +199,31 @@ export default function HomePage() {
             alignItems: "center",
             justifyContent: "center",
             background:
-              "linear-gradient(to bottom, #FFF4D6 0%, #EAF3FF 55%, #F8FAFC 100%)",
+              "linear-gradient(to bottom, #FFF6DE 0%, #EDF4FF 55%, #F8FAFC 100%)",
             padding: "40px 20px",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
+          {/* Soft Morning Glow */}
+          <div
+            style={{
+              position: "absolute",
+              top: "15%",
+              width: "700px",
+              height: "400px",
+              background:
+                "radial-gradient(circle, rgba(255,220,150,0.35), transparent 70%)",
+              filter: "blur(120px)",
+              pointerEvents: "none",
+            }}
+          />
+
           <div style={{ textAlign: "center", marginBottom: 50 }}>
             <h1
               style={{
-                fontSize: "44px",
-                letterSpacing: "0.3em",
+                fontSize: "46px",
+                letterSpacing: "0.35em",
                 fontWeight: 700,
                 color: "#1e293b",
                 fontFamily: "Georgia, serif",
@@ -240,37 +247,41 @@ export default function HomePage() {
               style={{
                 marginTop: 18,
                 fontSize: "13px",
-                color: "#475569",
+                color: "#64748b",
               }}
             >
               CBSE-Aligned Learning Platform.
             </p>
           </div>
 
-          <form
+          <motion.form
             onSubmit={handleSubmit}
-            style={{ display: "grid", gap: 18, width: "360px" }}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8 }}
+            style={{
+              display: "grid",
+              gap: 18,
+              width: "380px",
+              padding: 28,
+              borderRadius: 18,
+              backdropFilter: "blur(10px)",
+              background: "rgba(255,255,255,0.75)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.08)",
+            }}
           >
             <input
               type="text"
               placeholder="Student Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={{
-                padding: 14,
-                borderRadius: 10,
-                border: "1px solid #cbd5e1",
-              }}
+              style={inputStyle}
             />
 
             <select
               value={studentClass}
               onChange={(e) => setStudentClass(e.target.value)}
-              style={{
-                padding: 14,
-                borderRadius: 10,
-                border: "1px solid #cbd5e1",
-              }}
+              style={inputStyle}
             >
               <option value="">Select Class</option>
               {[6, 7, 8, 9, 10, 11, 12].map((cls) => (
@@ -285,34 +296,52 @@ export default function HomePage() {
               placeholder="Access Code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              style={{
-                padding: 14,
-                borderRadius: 10,
-                border: "1px solid #cbd5e1",
-              }}
+              style={inputStyle}
             />
 
             {error && (
               <div style={{ color: "#dc2626", fontSize: 13 }}>{error}</div>
             )}
 
-            <button
+            <motion.button
               type="submit"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               style={{
                 padding: 14,
-                borderRadius: 10,
+                borderRadius: 12,
                 border: "none",
                 background: "linear-gradient(to right, #D4AF37, #C89B2B)",
                 color: "#1e293b",
                 fontWeight: 600,
                 cursor: "pointer",
+                boxShadow: "0 8px 25px rgba(212,175,55,0.35)",
               }}
             >
               ENTER SHAURI
-            </button>
-          </form>
+            </motion.button>
+          </motion.form>
+
+          <p
+            style={{
+              marginTop: 28,
+              fontSize: 11,
+              letterSpacing: "0.2em",
+              color: "#94a3b8",
+            }}
+          >
+            Crafted for Focused Minds.
+          </p>
         </div>
       )}
     </>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  padding: 14,
+  borderRadius: 12,
+  border: "1px solid #e2e8f0",
+  background: "rgba(255,255,255,0.9)",
+  fontSize: 14,
+};
