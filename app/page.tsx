@@ -61,10 +61,10 @@ export default function HomePage() {
               position: "fixed",
               inset: 0,
               background: "linear-gradient(to top, #000814 0%, #001d3d 100%)",
+              overflow: "hidden",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              overflow: "hidden",
               cursor: "pointer",
             }}
             initial={{ opacity: 0 }}
@@ -73,23 +73,24 @@ export default function HomePage() {
             transition={{ duration: 1.2 }}
             onClick={handleEnter}
           >
-            {/* Dawn Glow */}
+            {/* Dawn Glow Behind Summit */}
             <motion.div
               style={{
                 position: "absolute",
-                bottom: "52%",
+                bottom: "48%",
                 left: "50%",
                 transform: "translateX(-50%)",
-                width: "1100px",
+                width: "1000px",
                 height: "700px",
                 background:
-                  "radial-gradient(circle at center, rgba(255,210,120,0.55), transparent 70%)",
-                filter: "blur(100px)",
+                  "radial-gradient(circle at center, rgba(255,210,120,0.45), transparent 70%)",
+                filter: "blur(120px)",
               }}
               animate={{ opacity: [0.7, 1, 0.7] }}
-              transition={{ duration: 8, repeat: Infinity }}
+              transition={{ duration: 9, repeat: Infinity }}
             />
 
+            {/* Mountain Layers */}
             <svg
               viewBox="0 0 1440 800"
               preserveAspectRatio="none"
@@ -100,72 +101,63 @@ export default function HomePage() {
                 height: "80%",
               }}
             >
-              <defs>
-                <filter id="ridgeGlow">
-                  <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-                  <feMerge>
-                    <feMergeNode in="coloredBlur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-
-              {/* Background Layer (faint far mountains) */}
+              {/* Far Layer */}
               <path
                 d="
-                  M0,620 
-                  C200,580 400,560 600,540
-                  C800,520 1000,540 1440,580
+                  M0,640
+                  C200,600 350,580 550,570
+                  C750,560 950,580 1440,620
                   L1440,800 L0,800 Z
                 "
-                fill="rgba(0,0,0,0.35)"
+                fill="#061a2d"
               />
 
               {/* Mid Layer */}
               <path
                 d="
-                  M0,660
-                  C180,610 340,590 480,580
-                  C650,560 820,580 1000,610
-                  C1150,630 1300,640 1440,660
+                  M0,690
+                  C200,640 350,610 550,600
+                  C650,590 720,570 820,590
+                  C1000,630 1200,660 1440,690
                   L1440,800 L0,800 Z
                 "
-                fill="rgba(0,0,0,0.55)"
+                fill="#04121f"
               />
 
-              {/* Foreground Main Mountain */}
+              {/* Main Foreground Mountain (Reference-Based Structure) */}
               <path
                 d="
-                  M0,700
-                  C180,650 340,620 480,600
-                  C600,580 670,540 720,480
-                  C770,540 840,580 980,610
-                  C1120,640 1250,660 1440,690
+                  M0,730
+                  C150,690 300,660 450,640
+                  C600,620 660,580 700,520
+                  C710,500 715,490 720,480
+                  C725,490 735,510 760,540
+                  C820,600 920,640 1100,670
+                  C1250,695 1350,710 1440,720
                   L1440,800 L0,800 Z
                 "
                 fill="#000000"
               />
-
-              {/* Golden Ridge on Main Peak */}
-              <path
-                d="
-                  M480,600
-                  C600,580 670,540 720,480
-                  C770,540 840,580 980,610
-                "
-                fill="none"
-                stroke="#FFD166"
-                strokeWidth="2.5"
-                filter="url(#ridgeGlow)"
-              />
             </svg>
+
+            {/* Cinematic Grain Overlay */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage:
+                  "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"noise\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"2\" stitchTiles=\"stitch\"/></filter><rect width=\"100%\" height=\"100%\" filter=\"url(%23noise)\" opacity=\"0.04\"/></svg>')",
+                mixBlendMode: "overlay",
+                pointerEvents: "none",
+              }}
+            />
 
             {/* Brand */}
             <motion.div
               style={{
                 textAlign: "center",
                 position: "relative",
-                transform: "translateY(-20px)",
+                transform: "translateY(-30px)",
               }}
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -193,10 +185,9 @@ export default function HomePage() {
                 Aligned. Adaptive. Guiding Excellence.
               </p>
 
-              {/* Summit Alignment */}
               <motion.p
                 style={{
-                  marginTop: 30,
+                  marginTop: 28,
                   fontSize: "12px",
                   letterSpacing: "0.3em",
                   color: "#FFD166",
