@@ -146,7 +146,23 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const mode: string = body?.mode ?? "";
-    const student: StudentContext | undefined = body?.student;
+
+    /* ================= COOKIE FALLBACK FIX ================= */
+
+    let student: StudentContext | undefined = body?.student;
+
+    if (!student?.name || !student?.class) {
+      const nameFromCookie = req.cookies.get("shauri_name")?.value;
+      const classFromCookie = req.cookies.get("shauri_class")?.value;
+
+      if (nameFromCookie && classFromCookie) {
+        student = {
+          name: decodeURIComponent(nameFromCookie),
+          class: decodeURIComponent(classFromCookie),
+          board: "CBSE",
+        };
+      }
+    }
 
     const history: ChatMessage[] =
       Array.isArray(body?.history)
@@ -202,7 +218,7 @@ Board: CBSE
       }
     }
 
-    /* ================= EXAMINER ================= */
+    /* ================= EXAMINER MODE ================= */
 
     if (mode === "examiner") {
 
