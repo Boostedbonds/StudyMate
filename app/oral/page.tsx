@@ -14,7 +14,7 @@ export default function OralPage() {
     {
       role: "assistant",
       content:
-        "I’m your CBSE learning partner 🎤 You can speak or type your answers. Let’s begin.",
+        "Hello, I’m Shauri, your learning partner.\n\nLet’s discuss what you want to learn today — a topic explanation, dictation test, or spelling practice?",
     },
   ]);
 
