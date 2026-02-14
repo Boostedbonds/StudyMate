@@ -54,13 +54,14 @@ export default function HomePage() {
 
   return (
     <>
+      {/* ================= INTRO SCREEN ================= */}
       <AnimatePresence>
         {!entered && (
           <motion.div
             style={{
               position: "fixed",
               inset: 0,
-              background: "linear-gradient(to top, #000814 0%, #001d3d 100%)",
+              background: "radial-gradient(circle at 50% 35%, #0f2a4a 0%, #071628 55%, #030712 100%)",
               overflow: "hidden",
               display: "flex",
               alignItems: "center",
@@ -73,18 +74,69 @@ export default function HomePage() {
             transition={{ duration: 1.2 }}
             onClick={handleEnter}
           >
+            {/* Summit Glow */}
             <motion.div
-              style={{ textAlign: "center" }}
+              style={{
+                position: "absolute",
+                bottom: "45%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "900px",
+                height: "600px",
+                background:
+                  "radial-gradient(circle at center, rgba(255,210,120,0.35), transparent 70%)",
+                filter: "blur(120px)",
+              }}
+              animate={{ opacity: [0.8, 1, 0.8] }}
+              transition={{ duration: 8, repeat: Infinity }}
+            />
+
+            {/* Mountain Outline */}
+            <svg
+              viewBox="0 0 1440 800"
+              preserveAspectRatio="none"
+              style={{
+                position: "absolute",
+                bottom: 0,
+                width: "100%",
+                height: "75%",
+              }}
+            >
+              <path
+                d="M0,760 
+                   C200,700 400,640 600,620
+                   C680,610 700,570 720,520
+                   C740,570 760,610 840,630
+                   C1040,670 1240,720 1440,760
+                   L1440,800 L0,800 Z"
+                fill="#000000"
+              />
+
+              <path
+                d="M500,640 L720,520 L940,650"
+                fill="none"
+                stroke="#FFD166"
+                strokeWidth="3"
+                strokeLinejoin="round"
+                style={{
+                  filter: "drop-shadow(0 0 8px rgba(255,209,102,0.8))",
+                }}
+              />
+            </svg>
+
+            {/* Brand */}
+            <motion.div
+              style={{ textAlign: "center", position: "relative", zIndex: 2 }}
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 1.6 }}
             >
               <h1
                 style={{
-                  fontSize: "64px",
-                  letterSpacing: "0.5em",
+                  fontSize: "70px",
+                  letterSpacing: "0.45em",
+                  fontWeight: 700,
                   color: "#FFD166",
-                  fontWeight: 600,
                 }}
               >
                 SHAURI
@@ -94,7 +146,7 @@ export default function HomePage() {
                 style={{
                   marginTop: 24,
                   fontSize: "14px",
-                  letterSpacing: "0.2em",
+                  letterSpacing: "0.25em",
                   color: "#cbd5e1",
                 }}
               >
@@ -103,15 +155,15 @@ export default function HomePage() {
 
               <motion.p
                 style={{
-                  marginTop: 28,
+                  marginTop: 30,
                   fontSize: "12px",
-                  letterSpacing: "0.3em",
+                  letterSpacing: "0.35em",
                   color: "#FFD166",
                 }}
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               >
-                CLICK TO ENTER
+                BEGIN ASCENT
               </motion.p>
             </motion.div>
 
@@ -131,6 +183,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
+      {/* ================= ACCESS PAGE ================= */}
       {entered && (
         <div
           style={{
@@ -140,50 +193,17 @@ export default function HomePage() {
             alignItems: "center",
             justifyContent: "center",
             background:
-              "linear-gradient(to bottom, #FFF4D6 0%, #EAF3FF 55%, #F8FAFC 100%)",
-            position: "relative",
-            overflow: "hidden",
+              "linear-gradient(to bottom, #fdf6e3 0%, #eef2ff 50%, #f8fafc 100%)",
             padding: "40px 20px",
           }}
         >
-          {/* Sun Rays */}
-          <motion.div
-            style={{
-              position: "absolute",
-              top: "-250px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: "1400px",
-              height: "800px",
-              background:
-                "radial-gradient(circle at center, rgba(255,210,120,0.4), transparent 70%)",
-              filter: "blur(140px)",
-            }}
-            animate={{ opacity: [0.7, 1, 0.7] }}
-            transition={{ duration: 10, repeat: Infinity }}
-          />
-
-          {/* Grain */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage:
-                "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"noise\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"2\" stitchTiles=\"stitch\"/></filter><rect width=\"100%\" height=\"100%\" filter=\"url(%23noise)\" opacity=\"0.03\"/></svg>')",
-              mixBlendMode: "overlay",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* Authoritative Branding */}
-          <div style={{ textAlign: "center", marginBottom: "60px", zIndex: 2 }}>
+          <div style={{ textAlign: "center", marginBottom: 50 }}>
             <h1
               style={{
-                fontFamily: "Georgia, serif",
                 fontSize: "44px",
                 letterSpacing: "0.3em",
                 fontWeight: 700,
-                color: "#1e293b",
+                color: "#0f172a",
               }}
             >
               SHAURI
@@ -207,18 +227,16 @@ export default function HomePage() {
                 color: "#64748b",
               }}
             >
-              Secure academic access.
+              CBSE-Aligned Learning Platform
             </p>
           </div>
 
-          {/* Form */}
           <form
             onSubmit={handleSubmit}
             style={{
               display: "grid",
               gap: 18,
-              width: "360px",
-              zIndex: 2,
+              width: 360,
             }}
           >
             <input
@@ -228,9 +246,8 @@ export default function HomePage() {
               onChange={(e) => setName(e.target.value)}
               style={{
                 padding: 14,
-                borderRadius: 10,
+                borderRadius: 8,
                 border: "1px solid #cbd5e1",
-                background: "rgba(255,255,255,0.75)",
               }}
             />
 
@@ -239,9 +256,8 @@ export default function HomePage() {
               onChange={(e) => setStudentClass(e.target.value)}
               style={{
                 padding: 14,
-                borderRadius: 10,
+                borderRadius: 8,
                 border: "1px solid #cbd5e1",
-                background: "rgba(255,255,255,0.75)",
               }}
             >
               <option value="">Select Class</option>
@@ -259,9 +275,8 @@ export default function HomePage() {
               onChange={(e) => setCode(e.target.value)}
               style={{
                 padding: 14,
-                borderRadius: 10,
+                borderRadius: 8,
                 border: "1px solid #cbd5e1",
-                background: "rgba(255,255,255,0.75)",
               }}
             />
 
@@ -273,15 +288,16 @@ export default function HomePage() {
               type="submit"
               style={{
                 padding: 14,
-                borderRadius: 10,
+                borderRadius: 8,
                 border: "none",
                 background: "linear-gradient(to right, #F6C56F, #E8A93B)",
-                color: "#1e293b",
-                fontWeight: 600,
+                color: "#0f172a",
+                fontWeight: 700,
+                letterSpacing: "0.1em",
                 cursor: "pointer",
               }}
             >
-              Enter SHAURI
+              ENTER SHAURI
             </button>
           </form>
         </div>
