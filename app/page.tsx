@@ -61,7 +61,8 @@ export default function HomePage() {
             style={{
               position: "fixed",
               inset: 0,
-              background: "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
+              background:
+                "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
               overflow: "hidden",
               display: "flex",
               alignItems: "center",
@@ -189,7 +190,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ================= ACCESS PAGE (Enhanced Only) ================= */}
+      {/* ================= ACCESS PAGE ================= */}
       {entered && (
         <div
           style={{
@@ -205,16 +206,16 @@ export default function HomePage() {
             overflow: "hidden",
           }}
         >
-          {/* Soft Morning Glow */}
+          {/* Enhanced Glow */}
           <div
             style={{
               position: "absolute",
-              top: "15%",
-              width: "700px",
-              height: "400px",
+              top: "12%",
+              width: "800px",
+              height: "450px",
               background:
-                "radial-gradient(circle, rgba(255,220,150,0.35), transparent 70%)",
-              filter: "blur(120px)",
+                "radial-gradient(circle, rgba(212,175,55,0.35) 0%, rgba(212,175,55,0.15) 40%, transparent 70%)",
+              filter: "blur(130px)",
               pointerEvents: "none",
             }}
           />
@@ -232,9 +233,44 @@ export default function HomePage() {
               SHAURI
             </h1>
 
+            {/* Mountain Logo Element */}
+            <div style={{ marginTop: 18, marginBottom: 18 }}>
+              <svg
+                width="240"
+                height="70"
+                viewBox="0 0 300 120"
+                fill="none"
+              >
+                <defs>
+                  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#F5E6B2" />
+                    <stop offset="50%" stopColor="#D4AF37" />
+                    <stop offset="100%" stopColor="#B68A2E" />
+                  </linearGradient>
+
+                  <filter id="mountainGlow">
+                    <feGaussianBlur stdDeviation="2" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <path
+                  d="M20 95 L110 60 L150 35 L190 60 L280 95"
+                  stroke="url(#gold)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  filter="url(#mountainGlow)"
+                />
+              </svg>
+            </div>
+
             <p
               style={{
-                marginTop: 14,
+                marginTop: 10,
                 fontSize: "14px",
                 letterSpacing: "0.15em",
                 color: "#475569",
@@ -305,20 +341,21 @@ export default function HomePage() {
 
             <motion.button
               type="submit"
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               style={{
                 padding: 14,
                 borderRadius: 12,
                 border: "none",
-                background: "linear-gradient(to right, #D4AF37, #C89B2B)",
+                background:
+                  "linear-gradient(to right, #D4AF37, #C89B2B)",
                 color: "#1e293b",
                 fontWeight: 600,
                 cursor: "pointer",
-                boxShadow: "0 8px 25px rgba(212,175,55,0.35)",
+                boxShadow: "0 10px 30px rgba(212,175,55,0.45)",
               }}
             >
-              ENTER SHAURI
+              FORGE YOUR EDGE
             </motion.button>
           </motion.form>
 
