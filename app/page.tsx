@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const ACCESS_CODE = "0330";
 
@@ -9,6 +10,8 @@ export default function HomePage() {
   const [name, setName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [error, setError] = useState("");
+  const [entered, setEntered] = useState(false);
+  const [warp, setWarp] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,20 +38,14 @@ export default function HomePage() {
       board: "CBSE",
     };
 
-    // ✅ Save to localStorage
-    localStorage.setItem(
-      "shauri_student",
-      JSON.stringify(studentContext)
-    );
+    localStorage.setItem("shauri_student", JSON.stringify(studentContext));
 
-    // ✅ Verify save (extra safety)
     const verify = localStorage.getItem("shauri_student");
     if (!verify) {
       setError("Storage error. Please try again.");
       return;
     }
 
-    // 🔐 Optional cookies (middleware support)
     document.cookie = `shauri_name=${encodeURIComponent(
       studentContext.name
     )}; path=/; SameSite=Lax`;
@@ -57,157 +54,166 @@ export default function HomePage() {
       studentContext.class
     )}; path=/; SameSite=Lax`;
 
-    // ✅ Delay navigation to avoid race condition
     setTimeout(() => {
       window.location.href = "/modes";
     }, 50);
   }
 
+  const handleEnter = () => {
+    setWarp(true);
+    setTimeout(() => {
+      setEntered(true);
+    }, 600);
+  };
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #e0f2fe 0%, #bae6fd 40%, #c7d2fe 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: "#ffffff",
-          padding: "52px 46px 32px",
-          borderRadius: 20,
-          width: 460,
-          textAlign: "center",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-        }}
-      >
-        <h1 style={{ fontSize: 36, marginBottom: 6 }}>Shauri</h1>
+    <>
+      {/* INTRO SCREEN */}
+      <AnimatePresence>
+        {!entered && (
+          <motion.div
+            className="fixed inset-0 bg-[#0B0B0F] flex items-center justify-center cursor-pointer overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            onClick={handleEnter}
+          >
+            <motion.div
+              className="text-center"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.5 }}
+            >
+              <h1 className="text-6xl tracking-[0.5em] text-[#C6A85A] font-semibold">
+                SHAURI
+              </h1>
 
-        <p style={{ marginBottom: 4, color: "#475569", fontWeight: 600 }}>
-          Your Learning Platform
-        </p>
+              <p className="mt-6 text-sm tracking-widest text-gray-400">
+                The Courage to Master the Future
+              </p>
 
-        <p style={{ marginBottom: 28, color: "#64748b", fontSize: 14 }}>
-          Supports CBSE & NCERT curriculum.
-        </p>
+              <motion.p
+                className="mt-12 text-xs uppercase tracking-[0.3em] text-[#C6A85A]"
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              >
+                Click to Enter
+              </motion.p>
+            </motion.div>
 
-        <div
-          style={{
-            background: "#eef2ff",
-            padding: 16,
-            borderRadius: 12,
-            marginBottom: 22,
-            fontWeight: 600,
-          }}
-        >
-          Access Control
-        </div>
-
-        <input
-          type="text"
-          placeholder="Student Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{
-            width: "100%",
-            padding: 16,
-            fontSize: 16,
-            marginBottom: 14,
-            borderRadius: 12,
-            border: "1px solid #cbd5f5",
-            textAlign: "center",
-          }}
-        />
-
-        <select
-          value={studentClass}
-          onChange={(e) => setStudentClass(e.target.value)}
-          style={{
-            width: "100%",
-            padding: 16,
-            fontSize: 16,
-            marginBottom: 14,
-            borderRadius: 12,
-            border: "1px solid #cbd5f5",
-            textAlign: "center",
-            background: "#ffffff",
-          }}
-        >
-          <option value="">Select Class</option>
-          {[6, 7, 8, 9, 10, 11, 12].map((cls) => (
-            <option key={cls} value={cls}>
-              Class {cls}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="password"
-          placeholder="Access Code"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          style={{
-            width: "100%",
-            padding: 16,
-            fontSize: 16,
-            marginBottom: 14,
-            borderRadius: 12,
-            border: "1px solid #cbd5f5",
-            textAlign: "center",
-          }}
-        />
-
-        {error && (
-          <div style={{ color: "#dc2626", marginBottom: 14 }}>
-            {error}
-          </div>
+            {warp && (
+              <motion.div
+                className="absolute inset-0 bg-white"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6 }}
+              />
+            )}
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        <button
-          type="submit"
+      {/* ACCESS WORLD */}
+      {entered && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="min-h-screen flex items-center justify-center relative"
           style={{
-            width: "100%",
-            padding: 16,
-            background: "#2563eb",
-            color: "#ffffff",
-            borderRadius: 12,
-            border: "none",
-            fontSize: 18,
-            cursor: "pointer",
+            background:
+              "linear-gradient(180deg, #f8fafc 0%, #e2f0ff 100%)",
           }}
         >
-          Enter Shauri
-        </button>
+          {/* Sunbeam */}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "900px",
+              height: "500px",
+              background:
+                "radial-gradient(circle at top, rgba(255,215,120,0.25), transparent 60%)",
+              pointerEvents: "none",
+            }}
+          />
 
-        <div
-          style={{
-            marginTop: 26,
-            background: "#fef9c3",
-            padding: 14,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          This platform requires parent authorization for student access.
-        </div>
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+            className="relative bg-white/90 backdrop-blur-md rounded-2xl p-10 w-[460px] shadow-xl"
+          >
+            {/* Branding */}
+            <div className="text-center mb-8">
+              <h1 className="text-3xl tracking-[0.3em] font-semibold text-gray-900">
+                SHAURI
+              </h1>
+              <p className="mt-3 text-sm text-gray-500 tracking-wide">
+                The Courage to Master the Future
+              </p>
+            </div>
 
-        <div
-          style={{
-            marginTop: 22,
-            fontSize: 12,
-            color: "#475569",
-            lineHeight: 1.4,
-          }}
-        >
-          © Shauri. All rights reserved.
-          <br />
-          For educational use only.
-        </div>
-      </form>
-    </div>
+            {/* Feature Row */}
+            <div className="flex justify-between text-xs text-gray-500 mb-8">
+              <span>AI Powered</span>
+              <span>CBSE Structured</span>
+              <span>Exam + Practice</span>
+              <span>Parent Secured</span>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input
+                type="text"
+                placeholder="Student Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+
+              <select
+                value={studentClass}
+                onChange={(e) => setStudentClass(e.target.value)}
+                className="w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                <option value="">Select Class</option>
+                {[6, 7, 8, 9, 10, 11, 12].map((cls) => (
+                  <option key={cls} value={cls}>
+                    Class {cls}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="password"
+                placeholder="Access Code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+
+              {error && (
+                <div className="text-red-600 text-sm">{error}</div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full p-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all"
+              >
+                Enter Shauri
+              </button>
+            </form>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Parent authorization required for student access.
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </>
   );
 }
