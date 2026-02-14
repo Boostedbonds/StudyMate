@@ -58,7 +58,7 @@ export default function HomePage() {
 
   return (
     <>
-      {/* ================= INTRO SCREEN ================= */}
+      {/* ================= INTRO SCREEN (UNCHANGED STRUCTURE) ================= */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -67,7 +67,6 @@ export default function HomePage() {
               inset: 0,
               background:
                 "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
-              overflow: "hidden",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -96,7 +95,7 @@ export default function HomePage() {
             />
 
             <motion.div
-              style={{ textAlign: "center", position: "relative" }}
+              style={{ textAlign: "center" }}
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 1.6 }}
@@ -167,7 +166,6 @@ export default function HomePage() {
               "linear-gradient(to bottom, #FFF6DE 0%, #EDF4FF 55%, #F8FAFC 100%)",
             padding: "40px 20px",
             position: "relative",
-            overflow: "hidden",
           }}
         >
           <div
@@ -212,4 +210,113 @@ export default function HomePage() {
               >
                 SHAURI
               </text>
-            </
+            </svg>
+
+            <p
+              style={{
+                marginTop: 14,
+                fontSize: "14px",
+                letterSpacing: "0.15em",
+                color: "#475569",
+              }}
+            >
+              Aligned. Adaptive. Guiding Excellence.
+            </p>
+
+            <p
+              style={{
+                marginTop: 18,
+                fontSize: "13px",
+                color: "#64748b",
+              }}
+            >
+              CBSE-Aligned Learning Platform.
+            </p>
+          </div>
+
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              display: "grid",
+              gap: 18,
+              width: "380px",
+              padding: 28,
+              borderRadius: 18,
+              background: "rgba(255,255,255,0.9)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.08)",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Student Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={inputStyle}
+            />
+
+            <select
+              value={studentClass}
+              onChange={(e) => setStudentClass(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">Select Class</option>
+              {[6, 7, 8, 9, 10, 11, 12].map((cls) => (
+                <option key={cls} value={cls}>
+                  Class {cls}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="password"
+              placeholder="Access Code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              style={inputStyle}
+            />
+
+            {error && (
+              <div style={{ color: "#dc2626", fontSize: 13 }}>{error}</div>
+            )}
+
+            <button
+              type="submit"
+              style={{
+                padding: 14,
+                borderRadius: 12,
+                border: "none",
+                background:
+                  "linear-gradient(to right, #D4AF37, #C89B2B)",
+                color: "#1e293b",
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: "0 12px 35px rgba(212,175,55,0.45)",
+              }}
+            >
+              FORGE YOUR EDGE
+            </button>
+          </form>
+
+          <p
+            style={{
+              marginTop: 28,
+              fontSize: 11,
+              letterSpacing: "0.2em",
+              color: "#94a3b8",
+            }}
+          >
+            Crafted for Focused Minds.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  padding: 14,
+  borderRadius: 12,
+  border: "1px solid #e2e8f0",
+  background: "rgba(255,255,255,0.95)",
+  fontSize: 14,
+};
