@@ -39,8 +39,12 @@ export default function HomePage() {
     };
 
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
-    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/; SameSite=Lax`;
-    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_name=${encodeURIComponent(
+      studentContext.name
+    )}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_class=${encodeURIComponent(
+      studentContext.class
+    )}; path=/; SameSite=Lax`;
 
     setTimeout(() => {
       window.location.href = "/modes";
@@ -61,7 +65,8 @@ export default function HomePage() {
             style={{
               position: "fixed",
               inset: 0,
-              background: "radial-gradient(circle at 50% 35%, #0f2a4a 0%, #071628 55%, #030712 100%)",
+              background:
+                "radial-gradient(circle at center, #0b1d33 0%, #071426 60%, #020812 100%)",
               overflow: "hidden",
               display: "flex",
               alignItems: "center",
@@ -74,24 +79,24 @@ export default function HomePage() {
             transition={{ duration: 1.2 }}
             onClick={handleEnter}
           >
-            {/* Summit Glow */}
+            {/* Dawn Glow Behind Peak */}
             <motion.div
               style={{
                 position: "absolute",
-                bottom: "45%",
+                bottom: "42%",
                 left: "50%",
                 transform: "translateX(-50%)",
-                width: "900px",
-                height: "600px",
+                width: "1200px",
+                height: "800px",
                 background:
                   "radial-gradient(circle at center, rgba(255,210,120,0.35), transparent 70%)",
                 filter: "blur(120px)",
               }}
-              animate={{ opacity: [0.8, 1, 0.8] }}
+              animate={{ opacity: [0.6, 1, 0.6] }}
               transition={{ duration: 8, repeat: Infinity }}
             />
 
-            {/* Mountain Outline */}
+            {/* Mountain Layers */}
             <svg
               viewBox="0 0 1440 800"
               preserveAspectRatio="none"
@@ -102,41 +107,58 @@ export default function HomePage() {
                 height: "75%",
               }}
             >
+              {/* Far */}
               <path
-                d="M0,760 
-                   C200,700 400,640 600,620
-                   C680,610 700,570 720,520
-                   C740,570 760,610 840,630
-                   C1040,670 1240,720 1440,760
-                   L1440,800 L0,800 Z"
-                fill="#000000"
+                d="M0,640 C300,580 500,560 720,580 C900,600 1100,620 1440,600 L1440,800 L0,800 Z"
+                fill="#081b2e"
               />
 
+              {/* Mid */}
               <path
-                d="M500,640 L720,520 L940,650"
-                fill="none"
-                stroke="#FFD166"
-                strokeWidth="3"
-                strokeLinejoin="round"
-                style={{
-                  filter: "drop-shadow(0 0 8px rgba(255,209,102,0.8))",
-                }}
+                d="M0,690 C300,650 500,620 720,640 C900,660 1100,690 1440,700 L1440,800 L0,800 Z"
+                fill="#051423"
+              />
+
+              {/* Main Foreground Peak */}
+              <path
+                d="
+                M0,740
+                C200,700 400,670 600,650
+                C650,640 700,600 720,540
+                C740,600 790,640 860,660
+                C1000,700 1200,720 1440,730
+                L1440,800 L0,800 Z
+              "
+                fill="#000000"
               />
             </svg>
 
-            {/* Brand */}
+            {/* Grain */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage:
+                  "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><filter id=\"noise\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"2\" stitchTiles=\"stitch\"/></filter><rect width=\"100%\" height=\"100%\" filter=\"url(%23noise)\" opacity=\"0.04\"/></svg>')",
+                mixBlendMode: "overlay",
+                pointerEvents: "none",
+              }}
+            />
+
+            {/* Branding */}
             <motion.div
-              style={{ textAlign: "center", position: "relative", zIndex: 2 }}
+              style={{ textAlign: "center", position: "relative" }}
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 1.6 }}
             >
               <h1
                 style={{
-                  fontSize: "70px",
+                  fontSize: "64px",
                   letterSpacing: "0.45em",
+                  color: "#E6B65C",
                   fontWeight: 700,
-                  color: "#FFD166",
+                  fontFamily: "Georgia, serif",
                 }}
               >
                 SHAURI
@@ -146,7 +168,7 @@ export default function HomePage() {
                 style={{
                   marginTop: 24,
                   fontSize: "14px",
-                  letterSpacing: "0.25em",
+                  letterSpacing: "0.2em",
                   color: "#cbd5e1",
                 }}
               >
@@ -155,18 +177,19 @@ export default function HomePage() {
 
               <motion.p
                 style={{
-                  marginTop: 30,
+                  marginTop: 32,
                   fontSize: "12px",
                   letterSpacing: "0.35em",
-                  color: "#FFD166",
+                  color: "#E6B65C",
                 }}
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               >
-                BEGIN ASCENT
+                BEGIN THE ASCENT
               </motion.p>
             </motion.div>
 
+            {/* Warp */}
             {warp && (
               <motion.div
                 style={{
@@ -193,17 +216,20 @@ export default function HomePage() {
             alignItems: "center",
             justifyContent: "center",
             background:
-              "linear-gradient(to bottom, #fdf6e3 0%, #eef2ff 50%, #f8fafc 100%)",
+              "linear-gradient(to bottom, #FFF4D6 0%, #EAF3FF 55%, #F8FAFC 100%)",
+            position: "relative",
             padding: "40px 20px",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: 50 }}>
+          {/* Branding */}
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
             <h1
               style={{
-                fontSize: "44px",
+                fontSize: 44,
                 letterSpacing: "0.3em",
                 fontWeight: 700,
-                color: "#0f172a",
+                fontFamily: "Georgia, serif",
+                color: "#1e293b",
               }}
             >
               SHAURI
@@ -212,7 +238,7 @@ export default function HomePage() {
             <p
               style={{
                 marginTop: 14,
-                fontSize: "14px",
+                fontSize: 14,
                 letterSpacing: "0.15em",
                 color: "#475569",
               }}
@@ -220,17 +246,12 @@ export default function HomePage() {
               Aligned. Adaptive. Guiding Excellence.
             </p>
 
-            <p
-              style={{
-                marginTop: 18,
-                fontSize: "13px",
-                color: "#64748b",
-              }}
-            >
-              CBSE-Aligned Learning Platform
+            <p style={{ marginTop: 18, fontSize: 13, color: "#64748b" }}>
+              CBSE Aligned Learning Platform
             </p>
           </div>
 
+          {/* Form */}
           <form
             onSubmit={handleSubmit}
             style={{
@@ -246,7 +267,7 @@ export default function HomePage() {
               onChange={(e) => setName(e.target.value)}
               style={{
                 padding: 14,
-                borderRadius: 8,
+                borderRadius: 10,
                 border: "1px solid #cbd5e1",
               }}
             />
@@ -256,7 +277,7 @@ export default function HomePage() {
               onChange={(e) => setStudentClass(e.target.value)}
               style={{
                 padding: 14,
-                borderRadius: 8,
+                borderRadius: 10,
                 border: "1px solid #cbd5e1",
               }}
             >
@@ -275,7 +296,7 @@ export default function HomePage() {
               onChange={(e) => setCode(e.target.value)}
               style={{
                 padding: 14,
-                borderRadius: 8,
+                borderRadius: 10,
                 border: "1px solid #cbd5e1",
               }}
             />
@@ -288,12 +309,11 @@ export default function HomePage() {
               type="submit"
               style={{
                 padding: 14,
-                borderRadius: 8,
+                borderRadius: 10,
                 border: "none",
                 background: "linear-gradient(to right, #F6C56F, #E8A93B)",
-                color: "#0f172a",
-                fontWeight: 700,
-                letterSpacing: "0.1em",
+                color: "#1e293b",
+                fontWeight: 600,
                 cursor: "pointer",
               }}
             >
