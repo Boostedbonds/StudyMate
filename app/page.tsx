@@ -80,24 +80,25 @@ export default function HomePage() {
             exit={{ opacity: 0 }}
           >
 
-            {/* LARGE ROUND SUN BEHIND SHAURI */}
+            {/* SUN PERFECTLY CENTERED BEHIND SHAURI */}
             <motion.div
               style={{
                 position: "absolute",
-                top: "32%",
+                top: "28%",
                 left: "50%",
                 transform: "translateX(-50%)",
-                width: "520px",
-                height: "520px",
+                width: "600px",
+                height: "600px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle, rgba(255,215,120,0.45) 0%, rgba(255,215,120,0.25) 35%, rgba(255,215,120,0.12) 55%, rgba(255,215,120,0.04) 70%, transparent 85%)",
-                filter: "blur(20px)",
+                  "radial-gradient(circle, rgba(255,215,120,0.50) 0%, rgba(255,215,120,0.28) 30%, rgba(255,215,120,0.15) 50%, rgba(255,215,120,0.06) 70%, transparent 90%)",
+                filter: "blur(22px)",
                 pointerEvents: "none",
+                zIndex: 1,
               }}
               animate={{
-                opacity: [0.7, 1, 0.7],
-                scale: [1, 1.05, 1],
+                opacity: [0.75, 1, 0.75],
+                scale: [1, 1.04, 1],
               }}
               transition={{
                 duration: 6,
@@ -105,24 +106,24 @@ export default function HomePage() {
               }}
             />
 
-            {/* BEAM FROM SUN TO SUMMIT */}
+            {/* BEAM ALIGNED FROM SUN CENTER TO SUMMIT */}
             <motion.div
               style={{
                 position: "absolute",
-                top: "40%",
-                bottom: "28%",
+                top: "36%",
+                bottom: "25%",
                 left: "50%",
                 transform: "translateX(-50%)",
-                width: "140px",
+                width: "160px",
                 background:
-                  "linear-gradient(to bottom, rgba(255,215,120,0.35), rgba(255,215,120,0.15), rgba(255,215,120,0.05), transparent)",
+                  "linear-gradient(to bottom, rgba(255,215,120,0.35), rgba(255,215,120,0.18), rgba(255,215,120,0.08), transparent)",
                 filter: "blur(14px)",
                 borderRadius: "80px",
                 cursor: "pointer",
                 zIndex: 3,
               }}
               animate={{
-                opacity: [0.6, 1, 0.6],
+                opacity: [0.65, 1, 0.65],
               }}
               transition={{
                 duration: 4,
@@ -140,6 +141,7 @@ export default function HomePage() {
                 bottom: 0,
                 width: "100%",
                 height: "75%",
+                zIndex: 2,
               }}
             >
               <path
@@ -156,22 +158,22 @@ export default function HomePage() {
               />
             </svg>
 
-            {/* BEGIN THE ASCENT — AT SUMMIT TIP */}
+            {/* BEGIN THE ASCENT EXACTLY AT SUMMIT TIP */}
             <motion.div
               onClick={handleEnter}
               style={{
                 position: "absolute",
-                bottom: "27%",
+                bottom: "24%",
                 left: "50%",
                 transform: "translateX(-50%)",
                 fontSize: "13px",
-                letterSpacing: "0.35em",
+                letterSpacing: "0.38em",
                 color: "#D4AF37",
                 cursor: "pointer",
                 zIndex: 5,
               }}
               animate={{
-                opacity: [0.5, 1, 0.5],
+                opacity: [0.6, 1, 0.6],
               }}
               transition={{
                 duration: 2,
@@ -181,13 +183,14 @@ export default function HomePage() {
               BEGIN THE ASCENT
             </motion.div>
 
-            {/* TITLE BLOCK */}
+            {/* TITLE BLOCK MOVED UP FOR CLEAR SEPARATION */}
             <div
               style={{
                 position: "absolute",
-                top: "38%",
+                top: "32%",
                 width: "100%",
                 textAlign: "center",
+                zIndex: 4,
               }}
             >
               <h1
@@ -203,10 +206,10 @@ export default function HomePage() {
 
               <p
                 style={{
-                  marginTop: "18px",
+                  marginTop: "28px",
                   fontSize: "15px",
-                  letterSpacing: "0.28em",
-                  color: "rgba(255,255,255,0.85)",
+                  letterSpacing: "0.30em",
+                  color: "rgba(255,255,255,0.88)",
                 }}
               >
                 THE COURAGE TO MASTER THE FUTURE
@@ -214,23 +217,24 @@ export default function HomePage() {
 
               <p
                 style={{
-                  marginTop: "10px",
+                  marginTop: "18px",
                   fontSize: "13px",
-                  letterSpacing: "0.25em",
-                  color: "rgba(212,175,55,0.9)",
+                  letterSpacing: "0.28em",
+                  color: "rgba(212,175,55,0.95)",
                 }}
               >
                 CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
               </p>
             </div>
 
-            {/* WARP TRANSITION */}
+            {/* WARP */}
             {warp && (
               <motion.div
                 style={{
                   position: "absolute",
                   inset: 0,
                   background: "white",
+                  zIndex: 10,
                 }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -241,7 +245,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ACCESS PAGE */}
+      {/* ACCESS PAGE UNCHANGED */}
       {entered && (
         <div
           style={{
