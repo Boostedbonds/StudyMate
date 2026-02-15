@@ -52,13 +52,8 @@ export default function HomePage() {
 
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
 
-    document.cookie = `shauri_name=${encodeURIComponent(
-      studentContext.name
-    )}; path=/; SameSite=Lax`;
-
-    document.cookie = `shauri_class=${encodeURIComponent(
-      studentContext.class
-    )}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/; SameSite=Lax`;
 
     window.location.href = "/modes";
   }
@@ -80,24 +75,25 @@ export default function HomePage() {
             exit={{ opacity: 0 }}
           >
 
-            {/* SUN — ONLY ENLARGED, CENTER PRESERVED */}
+            {/* SUN PERFECTLY CENTERED BEHIND SHAURI */}
             <motion.div
               style={{
                 position: "absolute",
-                top: "32%",
+                top: "30%",
                 left: "50%",
                 transform: "translate(-50%, -50%)",
-                width: "900px",
-                height: "900px",
+                width: "720px",
+                height: "720px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle, rgba(255,215,120,0.55) 0%, rgba(255,215,120,0.32) 30%, rgba(255,215,120,0.18) 50%, rgba(255,215,120,0.08) 70%, transparent 92%)",
+                  "radial-gradient(circle, rgba(255,215,120,0.55) 0%, rgba(255,215,120,0.32) 30%, rgba(255,215,120,0.16) 50%, rgba(255,215,120,0.07) 70%, transparent 85%)",
                 filter: "blur(28px)",
-                pointerEvents: "none",
                 zIndex: 1,
+                pointerEvents: "none",
               }}
               animate={{
-                opacity: [0.8, 1, 0.8],
+                opacity: [0.75, 1, 0.75],
+                scale: [1, 1.05, 1],
               }}
               transition={{
                 duration: 6,
@@ -105,25 +101,25 @@ export default function HomePage() {
               }}
             />
 
-            {/* BEAM */}
+            {/* CENTER BEAM */}
             <motion.div
               onClick={handleEnter}
               style={{
                 position: "absolute",
-                top: "38%",
-                bottom: "25%",
+                top: "34%",
+                bottom: "24%",
                 left: "50%",
                 transform: "translateX(-50%)",
                 width: "160px",
                 background:
                   "linear-gradient(to bottom, rgba(255,215,120,0.35), rgba(255,215,120,0.18), rgba(255,215,120,0.08), transparent)",
-                filter: "blur(14px)",
-                borderRadius: "80px",
+                filter: "blur(16px)",
+                borderRadius: "100px",
+                zIndex: 2,
                 cursor: "pointer",
-                zIndex: 3,
               }}
               animate={{
-                opacity: [0.65, 1, 0.65],
+                opacity: [0.6, 1, 0.6],
               }}
               transition={{
                 duration: 4,
@@ -140,7 +136,7 @@ export default function HomePage() {
                 bottom: 0,
                 width: "100%",
                 height: "75%",
-                zIndex: 2,
+                zIndex: 3,
               }}
             >
               <path
@@ -156,31 +152,6 @@ export default function HomePage() {
                 fill="#000000"
               />
             </svg>
-
-            {/* BEGIN THE ASCENT — TRUE SUMMIT ALIGNMENT */}
-            <motion.div
-              onClick={handleEnter}
-              style={{
-                position: "absolute",
-                bottom: "37.5%",   // exact summit tip position
-                left: "50%",
-                transform: "translateX(-50%)",
-                fontSize: "13px",
-                letterSpacing: "0.38em",
-                color: "#D4AF37",
-                cursor: "pointer",
-                zIndex: 5,
-              }}
-              animate={{
-                opacity: [0.6, 1, 0.6],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-              }}
-            >
-              BEGIN THE ASCENT
-            </motion.div>
 
             {/* TITLE BLOCK */}
             <div
@@ -205,10 +176,10 @@ export default function HomePage() {
 
               <p
                 style={{
-                  marginTop: "28px",
+                  marginTop: "26px",
                   fontSize: "15px",
                   letterSpacing: "0.30em",
-                  color: "rgba(255,255,255,0.88)",
+                  color: "rgba(255,255,255,0.9)",
                 }}
               >
                 THE COURAGE TO MASTER THE FUTURE
@@ -216,7 +187,7 @@ export default function HomePage() {
 
               <p
                 style={{
-                  marginTop: "18px",
+                  marginTop: "16px",
                   fontSize: "13px",
                   letterSpacing: "0.28em",
                   color: "rgba(212,175,55,0.95)",
@@ -226,6 +197,44 @@ export default function HomePage() {
               </p>
             </div>
 
+            {/* GOLD SUMMIT TAB */}
+            <motion.div
+              onClick={handleEnter}
+              style={{
+                position: "absolute",
+                bottom: "30.6%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                padding: "10px 22px",
+                borderRadius: "999px",
+                background:
+                  "linear-gradient(180deg, rgba(255,215,120,0.95), rgba(212,175,55,0.92))",
+                color: "#0a2540",
+                fontSize: "12px",
+                letterSpacing: "0.34em",
+                fontWeight: 700,
+                boxShadow:
+                  "0 0 14px rgba(255,215,120,0.9), 0 0 36px rgba(255,215,120,0.5)",
+                cursor: "pointer",
+                zIndex: 6,
+              }}
+              animate={{
+                scale: [1, 1.06, 1],
+                boxShadow: [
+                  "0 0 14px rgba(255,215,120,0.8)",
+                  "0 0 32px rgba(255,215,120,1)",
+                  "0 0 14px rgba(255,215,120,0.8)",
+                ],
+              }}
+              transition={{
+                duration: 2.2,
+                repeat: Infinity,
+              }}
+            >
+              BEGIN THE ASCENT
+            </motion.div>
+
+            {/* WARP */}
             {warp && (
               <motion.div
                 style={{
@@ -239,11 +248,12 @@ export default function HomePage() {
                 transition={{ duration: 0.9 }}
               />
             )}
+
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ACCESS PAGE — UNCHANGED */}
+      {/* ACCESS PAGE */}
       {entered && (
         <div
           style={{
@@ -255,14 +265,7 @@ export default function HomePage() {
             justifyContent: "center",
           }}
         >
-          <form
-            onSubmit={handleSubmit}
-            style={{
-              display: "grid",
-              gap: "16px",
-              width: "320px",
-            }}
-          >
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16, width: 320 }}>
             <input
               placeholder="Student Name"
               value={name}
@@ -276,7 +279,7 @@ export default function HomePage() {
               style={inputStyle}
             >
               <option value="">Select Class</option>
-              {[6,7,8,9,10,11,12].map((c)=>(
+              {[6,7,8,9,10,11,12].map(c => (
                 <option key={c}>Class {c}</option>
               ))}
             </select>
@@ -289,7 +292,7 @@ export default function HomePage() {
               style={inputStyle}
             />
 
-            {error && <div style={{color:"red"}}>{error}</div>}
+            {error && <div style={{ color: "red" }}>{error}</div>}
 
             <button style={buttonStyle}>STEP IN</button>
           </form>
