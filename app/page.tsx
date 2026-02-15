@@ -80,13 +80,13 @@ export default function HomePage() {
             exit={{ opacity: 0 }}
           >
 
-            {/* SUN PERFECTLY CENTERED BEHIND SHAURI */}
+            {/* SUN OPTICALLY CENTERED BEHIND SHAURI */}
             <motion.div
               style={{
                 position: "absolute",
                 top: "28%",
                 left: "50%",
-                transform: "translateX(-50%)",
+                transform: "translateX(-53%)",
                 width: "600px",
                 height: "600px",
                 borderRadius: "50%",
@@ -106,7 +106,7 @@ export default function HomePage() {
               }}
             />
 
-            {/* BEAM ALIGNED FROM SUN CENTER TO SUMMIT */}
+            {/* BEAM */}
             <motion.div
               style={{
                 position: "absolute",
@@ -158,7 +158,7 @@ export default function HomePage() {
               />
             </svg>
 
-            {/* BEGIN THE ASCENT EXACTLY AT SUMMIT TIP */}
+            {/* BEGIN */}
             <motion.div
               onClick={handleEnter}
               style={{
@@ -183,7 +183,7 @@ export default function HomePage() {
               BEGIN THE ASCENT
             </motion.div>
 
-            {/* TITLE BLOCK MOVED UP FOR CLEAR SEPARATION */}
+            {/* TITLE */}
             <div
               style={{
                 position: "absolute",
@@ -227,7 +227,6 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* WARP */}
             {warp && (
               <motion.div
                 style={{
@@ -245,7 +244,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ACCESS PAGE UNCHANGED */}
       {entered && (
         <div
           style={{
