@@ -65,6 +65,7 @@ export default function HomePage() {
 
   return (
     <div className={orbitron.className}>
+      {/* ================= INTRO (FROZEN — UNTOUCHED) ================= */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -80,7 +81,7 @@ export default function HomePage() {
             exit={{ opacity: 0 }}
           >
 
-            {/* SUN (UNCHANGED) */}
+            {/* SUN */}
             <motion.div
               style={{
                 position: "absolute",
@@ -106,7 +107,6 @@ export default function HomePage() {
               }}
             />
 
-
             {/* TITLE BLOCK */}
             <div
               style={{
@@ -128,7 +128,6 @@ export default function HomePage() {
                 SHAURI
               </h1>
 
-              {/* Subtitle closer */}
               <p
                 style={{
                   marginTop: "14px",
@@ -151,7 +150,6 @@ export default function HomePage() {
                 CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
               </p>
             </div>
-
 
             {/* LIGHT BEAM */}
             <motion.div
@@ -179,7 +177,6 @@ export default function HomePage() {
               onClick={handleEnter}
             />
 
-
             {/* MOUNTAIN */}
             <svg
               viewBox="0 0 1440 800"
@@ -206,8 +203,7 @@ export default function HomePage() {
               />
             </svg>
 
-
-            {/* BEGIN THE ASCENT — CLEAN TEXT ONLY */}
+            {/* BEGIN THE ASCENT */}
             <motion.div
               onClick={handleEnter}
               style={{
@@ -232,8 +228,6 @@ export default function HomePage() {
               BEGIN THE ASCENT
             </motion.div>
 
-
-            {/* WARP */}
             {warp && (
               <motion.div
                 style={{
@@ -247,13 +241,11 @@ export default function HomePage() {
                 transition={{ duration: 0.9 }}
               />
             )}
-
           </motion.div>
         )}
       </AnimatePresence>
 
-
-      {/* ACCESS PAGE UNCHANGED */}
+      {/* ================= ACCESS PAGE (UPDATED ONLY HERE) ================= */}
       {entered && (
         <div
           style={{
@@ -261,10 +253,52 @@ export default function HomePage() {
             background:
               "linear-gradient(to bottom, #FFF3D9, #FFE4B3, #E6F2FF, #F8FAFC)",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
+
+          {/* TITLE */}
+          <h1
+            style={{
+              fontSize: "42px",
+              letterSpacing: "0.45em",
+              fontWeight: 700,
+              color: "#1e293b",
+              marginBottom: "10px",
+            }}
+          >
+            SHAURI
+          </h1>
+
+          {/* TAGLINE */}
+          <p
+            style={{
+              fontSize: "13px",
+              letterSpacing: "0.30em",
+              color: "#334155",
+              marginBottom: "4px",
+              textAlign: "center",
+            }}
+          >
+            THE COURAGE TO MASTER THE FUTURE
+          </p>
+
+          {/* SYSTEM LINE */}
+          <p
+            style={{
+              fontSize: "11px",
+              letterSpacing: "0.26em",
+              color: "#64748b",
+              marginBottom: "28px",
+              textAlign: "center",
+            }}
+          >
+            CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
+          </p>
+
+          {/* FORM */}
           <form
             onSubmit={handleSubmit}
             style={{
@@ -302,8 +336,22 @@ export default function HomePage() {
             {error && <div style={{color:"red"}}>{error}</div>}
 
             <button style={buttonStyle}>STEP IN</button>
-
           </form>
+
+          {/* PRIVACY LINE */}
+          <p
+            style={{
+              marginTop: "22px",
+              fontSize: "10px",
+              letterSpacing: "0.18em",
+              color: "#64748b",
+              textAlign: "center",
+              maxWidth: "420px",
+            }}
+          >
+            Private. Secure. Used only to guide your learning journey. Never shared.
+          </p>
+
         </div>
       )}
     </div>
