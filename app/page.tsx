@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Space_Grotesk } from "next/font/google";
+import { Orbitron } from "next/font/google";
 
-const spaceGrotesk = Space_Grotesk({
+const orbitron = Orbitron({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["500", "600", "700"],
 });
 
 const ACCESS_CODE = "0330";
@@ -63,7 +63,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className={spaceGrotesk.className}>
+    <div className={orbitron.className}>
 
       {/* ================= INTRO SCREEN ================= */}
 
@@ -71,9 +71,6 @@ export default function HomePage() {
         {!entered && (
 
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             style={{
               position: "fixed",
               inset: 0,
@@ -81,37 +78,39 @@ export default function HomePage() {
                 "linear-gradient(to top, #000814 0%, #001d3d 60%, #0a2540 100%)",
               overflow: "hidden",
             }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
 
-            {/* Dawn circular sun */}
+            {/* SUN — BEHIND SHAURI */}
             <motion.div
               onClick={handleEnter}
               style={{
                 position: "absolute",
+                top: "32%",
                 left: "50%",
-                bottom: "37%",
-                transform: "translate(-50%, 50%)",
-                width: "480px",
-                height: "480px",
+                transform: "translate(-50%, -50%)",
+                width: "520px",
+                height: "520px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle, rgba(255,230,150,0.95) 0%, rgba(255,220,140,0.65) 20%, rgba(255,220,140,0.35) 40%, rgba(255,220,140,0.15) 55%, rgba(255,220,140,0.06) 65%, transparent 75%)",
-                filter: "blur(6px)",
-                cursor: "pointer",
+                  "radial-gradient(circle, rgba(255,230,150,0.95) 0%, rgba(255,220,140,0.55) 25%, rgba(255,220,140,0.25) 45%, rgba(255,220,140,0.08) 65%, transparent 75%)",
+                filter: "blur(10px)",
                 zIndex: 1,
+                cursor: "pointer",
               }}
               animate={{
                 opacity: [0.7, 1, 0.7],
-                scale: [0.97, 1.06, 0.97],
+                scale: [0.98, 1.06, 0.98],
               }}
               transition={{
                 duration: 6,
                 repeat: Infinity,
-                ease: "easeInOut",
               }}
             />
 
-            {/* Mountain silhouette — pointerEvents NONE so clicks pass through */}
+            {/* MOUNTAIN — untouched */}
             <svg
               viewBox="0 0 1440 800"
               preserveAspectRatio="none"
@@ -140,43 +139,8 @@ export default function HomePage() {
               />
             </svg>
 
-            {/* BEGIN THE ASCENT — EXACT summit tip, clickable */}
-            <motion.div
-              onClick={handleEnter}
-              style={{
-                position: "absolute",
-                left: "50%",
-                bottom: "37%",
-                transform: "translate(-50%, 140%)",
-                zIndex: 5,
-                cursor: "pointer",
-              }}
-              animate={{
-                opacity: [0.5, 1, 0.5],
-                textShadow: [
-                  "0 0 6px rgba(255,215,120,0.4)",
-                  "0 0 18px rgba(255,215,120,1)",
-                  "0 0 6px rgba(255,215,120,0.4)",
-                ],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "12px",
-                  letterSpacing: "0.32em",
-                  color: "rgba(255,215,120,0.95)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                BEGIN THE ASCENT
-              </div>
-            </motion.div>
 
-            {/* Title block */}
+            {/* TITLE BLOCK — MATCHING VISITING CARD */}
             <div
               style={{
                 position: "absolute",
@@ -186,11 +150,12 @@ export default function HomePage() {
                 zIndex: 4,
               }}
             >
+
               <h1
                 style={{
-                  fontSize: "64px",
-                  letterSpacing: "0.55em",
-                  fontWeight: 600,
+                  fontSize: "72px",
+                  fontWeight: 700,
+                  letterSpacing: "0.28em",
                   color: "#D4AF37",
                 }}
               >
@@ -199,28 +164,56 @@ export default function HomePage() {
 
               <p
                 style={{
-                  marginTop: 20,
-                  letterSpacing: "0.28em",
-                  fontSize: "14px",
-                  color: "rgba(255,255,255,0.85)",
+                  marginTop: "18px",
+                  fontSize: "15px",
+                  letterSpacing: "0.18em",
+                  color: "rgba(255,255,255,0.9)",
                 }}
               >
-                Aligned. Adaptive. Guiding Excellence.
+                THE COURAGE TO MASTER THE FUTURE
               </p>
 
               <p
                 style={{
-                  marginTop: 10,
-                  letterSpacing: "0.22em",
+                  marginTop: "10px",
                   fontSize: "12px",
-                  color: "rgba(212,175,55,0.85)",
+                  letterSpacing: "0.16em",
+                  color: "rgba(212,175,55,0.75)",
                 }}
               >
-                CBSE-Aligned Adaptive Learning Platform
+                CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
               </p>
+
             </div>
 
-            {/* Warp transition */}
+
+            {/* BEGIN THE ASCENT — summit aligned */}
+            <motion.div
+              onClick={handleEnter}
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "34%",
+                transform: "translate(-50%, 140%)",
+                zIndex: 5,
+                cursor: "pointer",
+                fontSize: "12px",
+                letterSpacing: "0.35em",
+                color: "#FFD875",
+              }}
+              animate={{
+                opacity: [0.5, 1, 0.5],
+              }}
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
+              }}
+            >
+              BEGIN THE ASCENT
+            </motion.div>
+
+
+            {/* WARP TRANSITION */}
             {warp && (
               <motion.div
                 style={{
@@ -239,6 +232,7 @@ export default function HomePage() {
 
         )}
       </AnimatePresence>
+
 
 
       {/* ================= ACCESS PAGE ================= */}
@@ -260,7 +254,7 @@ export default function HomePage() {
           <h1
             style={{
               fontSize: "48px",
-              letterSpacing: "0.55em",
+              letterSpacing: "0.28em",
               fontWeight: 600,
               color: "#1e293b",
             }}
@@ -297,6 +291,7 @@ export default function HomePage() {
                   Class {c}
                 </option>
               ))}
+
             </select>
 
             <input
@@ -330,11 +325,15 @@ export default function HomePage() {
   );
 }
 
+
+
 const inputStyle: React.CSSProperties = {
   padding: 12,
   borderRadius: 10,
   border: "1px solid #ccc",
+  fontFamily: "inherit",
 };
+
 
 const buttonStyle: React.CSSProperties = {
   padding: 14,
@@ -343,4 +342,5 @@ const buttonStyle: React.CSSProperties = {
   background: "white",
   letterSpacing: "0.25em",
   cursor: "pointer",
+  fontFamily: "inherit",
 };
