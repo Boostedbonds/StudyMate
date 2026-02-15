@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
+import { Orbitron } from "next/font/google";
+
+const orbitron = Orbitron({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+});
 
 type StudentContext = {
   name: string;
@@ -22,16 +28,17 @@ export default function AboutShauri() {
         }
       }
     } catch {
-      // silently ignore
+      // do nothing
     }
   }, []);
 
   return (
     <div
+      className={orbitron.className}
       style={{
         minHeight: "100vh",
         background:
-          "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 40%, #e0e7ff 100%)",
+          "linear-gradient(to bottom, #FFF3D9 0%, #FFE4B3 45%, #E6F2FF 100%)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -43,117 +50,132 @@ export default function AboutShauri() {
           flex: 1,
           maxWidth: 900,
           margin: "0 auto",
-          padding: "48px 32px",
+          padding: "60px 32px 80px 32px",
         }}
       >
-        <h1 style={{ fontSize: 36, marginBottom: 12 }}>
-          About Shauri
+        {/* MAIN HEADER */}
+        <h1
+          style={{
+            fontSize: 36,
+            letterSpacing: "0.22em",
+            color: "#0a2540",
+            marginBottom: 18,
+          }}
+        >
+          ABOUT SHAURI
         </h1>
 
+        {/* INTRO TEXT */}
         <p
           style={{
-            fontSize: 18,
-            color: "#475569",
-            marginBottom: 32,
-            lineHeight: 1.7,
+            fontSize: 15,
+            letterSpacing: "0.04em",
+            color: "#425466",
+            marginBottom: 40,
+            lineHeight: 1.8,
           }}
         >
           {student ? (
             <>
-              Shauri is supporting <b>{student.name}</b> in Class{" "}
-              <b>{student.class}</b> following the{" "}
-              <b>{student.board}</b> curriculum.
+              SHAURI IS SUPPORTING <b>{student.name.toUpperCase()}</b> IN CLASS{" "}
+              <b>{student.class}</b> FOLLOWING THE{" "}
+              <b>{student.board}</b> CURRICULUM.
             </>
           ) : (
             <>
-              Shauri is a CBSE-aligned learning platform designed for
-              students and parents.
+              SHAURI IS A CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM DESIGNED FOR
+              STUDENTS AND PARENTS.
             </>
           )}
         </p>
 
-        {/* What */}
-        <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 22, marginBottom: 8 }}>
-            What is Shauri?
-          </h2>
-          <p style={{ color: "#475569", lineHeight: 1.7 }}>
-            Shauri is a structured learning platform built around the
-            CBSE and NCERT syllabus. It helps students understand concepts
-            clearly, practice real exam-style questions, and track progress
-            in a meaningful way.
-          </p>
-        </section>
+        {/* SECTION */}
+        <Section
+          title="WHAT IS SHAURI"
+          text="Shauri is a structured CBSE-aligned adaptive learning platform built around the NCERT curriculum. It helps students build clarity, confidence, and true understanding — not memorization."
+        />
 
-        {/* Who */}
-        <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 22, marginBottom: 8 }}>
-            Who is it for?
-          </h2>
-          <p style={{ color: "#475569", lineHeight: 1.7 }}>
-            Shauri is designed for CBSE students and parents who want
-            clarity, exam readiness, and honest progress insights — without
-            pressure, comparison, or unnecessary complexity.
-          </p>
-        </section>
+        <Section
+          title="WHO IS IT FOR"
+          text="Shauri is designed for CBSE students and parents who value clarity, exam readiness, and meaningful academic progress without pressure, comparison, or noise."
+        />
 
-        {/* How */}
-        <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 22, marginBottom: 12 }}>
-            How does Shauri help?
+        {/* HOW */}
+        <section style={{ marginBottom: 36 }}>
+          <h2 style={sectionTitle}>
+            HOW SHAURI HELPS
           </h2>
-          <ul
-            style={{
-              color: "#475569",
-              lineHeight: 1.8,
-              paddingLeft: 18,
-            }}
-          >
+
+          <ul style={sectionText}>
             <li>
-              <b>Teacher Mode:</b> Clear, CBSE-aligned explanations and
-              examples.
+              TEACHER MODE — Concept clarity with CBSE-aligned explanations.
             </li>
+
             <li>
-              <b>Examiner Mode:</b> Full-length question papers under exam
-              conditions.
+              EXAMINER MODE — Real exam-style papers and evaluation.
             </li>
+
             <li>
-              <b>Oral Mode:</b> Spoken practice to improve recall and
-              confidence.
+              ORAL MODE — Improves recall, articulation, and confidence.
             </li>
+
             <li>
-              <b>Progress Dashboard:</b> Subject-wise strengths, weaknesses,
-              and guidance on where to focus next.
+              PROGRESS DASHBOARD — Honest insights into strengths and gaps.
             </li>
           </ul>
         </section>
 
-        {/* Privacy */}
-        <section style={{ marginBottom: 36 }}>
-          <h2 style={{ fontSize: 22, marginBottom: 8 }}>
-            Data & Privacy
-          </h2>
-          <p style={{ color: "#475569", lineHeight: 1.7 }}>
-            Student learning data is stored locally on the device being
-            used. It is not uploaded to servers unless a parent explicitly
-            chooses to export or download progress reports.
-          </p>
-        </section>
+        <Section
+          title="DATA & PRIVACY"
+          text="Student data remains private and stored locally on the device. Nothing is uploaded or shared unless explicitly exported by the parent or student."
+        />
 
-        {/* Footer note */}
+        {/* FOOTER */}
         <div
           style={{
-            marginTop: 48,
-            fontSize: 13,
-            color: "#64748b",
-            lineHeight: 1.6,
+            marginTop: 60,
+            fontSize: 12,
+            letterSpacing: "0.08em",
+            color: "#6b7c8f",
           }}
         >
-          © Shauri. All rights reserved.
+          © SHAURI  
           <br />
-          For educational use only.
+          CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
         </div>
       </main>
     </div>
   );
 }
+
+/* SECTION COMPONENT */
+
+function Section(props: { title: string; text: string }) {
+  return (
+    <section style={{ marginBottom: 36 }}>
+      <h2 style={sectionTitle}>
+        {props.title}
+      </h2>
+
+      <p style={sectionText}>
+        {props.text}
+      </p>
+    </section>
+  );
+}
+
+/* STYLES */
+
+const sectionTitle: React.CSSProperties = {
+  fontSize: 18,
+  letterSpacing: "0.18em",
+  color: "#D4AF37",
+  marginBottom: 12,
+};
+
+const sectionText: React.CSSProperties = {
+  fontSize: 14,
+  color: "#425466",
+  lineHeight: 1.8,
+  letterSpacing: "0.03em",
+};
