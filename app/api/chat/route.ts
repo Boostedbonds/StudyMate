@@ -55,15 +55,56 @@ Rules:
 - Professional tone.
 `;
 
+/* ================= STRICT EXAMINER PROMPT (UPGRADED) ================= */
+
 const EXAMINER_PROMPT = `
 You are in EXAMINER MODE.
 
-Evaluate like a real CBSE board examiner.
+You are a STRICT CBSE BOARD EXAMINER.
 
-For EACH question:
-✔ Correct
-✘ Wrong (Correct answer: ___)
-✘ Not Attempted (0 marks)
+Evaluate exactly like a real CBSE board paper checker.
+
+STRICT CBSE EVALUATION RULES:
+
+1. Marks must be awarded ONLY if the answer matches NCERT concepts correctly.
+
+2. Give FULL marks ONLY if:
+- All required points are present
+- Concept is correct
+- No incorrect statements exist
+
+3. Give PARTIAL marks ONLY if:
+- Some correct NCERT points are present
+- AND clearly identifiable marking points exist
+
+4. Give ZERO marks if:
+- Answer is vague
+- Answer is incomplete
+- Key NCERT concepts are missing
+- Concept is incorrect
+- Answer is generic or guessed
+- Answer is irrelevant
+
+5. DO NOT assume student intent.
+6. DO NOT infer missing points.
+7. DO NOT reward effort. Reward correctness only.
+8. Be strict like a real CBSE examiner.
+
+DETAILED EVALUATION FORMAT inside detailedEvaluation:
+
+Question 1: ✔ Correct (2/2)
+
+Question 2: ✘ Wrong (0/3)
+Reason: Missing required NCERT concept: ______
+Correct Answer: ______
+
+Question 3: ✘ Partial (1/3)
+Reason: Incomplete answer. Missing key points: ______
+Correct Answer: ______
+
+FINAL SUMMARY:
+Marks Obtained: X/Y
+Percentage: Z%
 
 Return STRICT JSON ONLY:
 
@@ -71,11 +112,12 @@ Return STRICT JSON ONLY:
   "marksObtained": number,
   "totalMarks": number,
   "percentage": number,
-  "detailedEvaluation": "Formatted evaluation text"
+  "detailedEvaluation": "Strict CBSE evaluation with reasons and correct answers"
 }
 
 No markdown.
-Pure JSON only.
+No explanation outside JSON.
+JSON only.
 `;
 
 /* ================= HELPERS ================= */
@@ -192,7 +234,7 @@ Board: CBSE
       { role: "user", content: message },
     ];
 
-    /* ================= AUTO REGISTER STUDENT (FIXED) ================= */
+    /* ================= AUTO REGISTER STUDENT ================= */
 
     let studentId: string | null = null;
 
@@ -248,15 +290,13 @@ Board: CBSE
         "submit","done","finished","finish","end test"
       ].includes(lower);
 
-      /* ===== SUBMIT ===== */
-
       if (isSubmit && existingSession?.status === "IN_EXAM") {
 
         const questionPaper = existingSession.question_paper ?? "";
         const answers = existingSession.answers ?? [];
 
         const evaluationPrompt = `
-Evaluate this answer sheet.
+Evaluate this answer sheet STRICTLY.
 
 QUESTION PAPER:
 ${questionPaper}
@@ -317,8 +357,6 @@ ${answers.join("\n\n")}
         });
       }
 
-      /* ===== IN EXAM ===== */
-
       if (existingSession?.status === "IN_EXAM") {
 
         const updatedAnswers = [
@@ -333,8 +371,6 @@ ${answers.join("\n\n")}
 
         return NextResponse.json({ reply: "" });
       }
-
-      /* ===== START ===== */
 
       if (lower === "start" && existingSession?.status === "AWAITING_START") {
 
@@ -374,8 +410,6 @@ Mention Total Marks.
           durationMinutes: existingSession.duration_minutes,
         });
       }
-
-      /* ===== SUBJECT ===== */
 
       if (looksLikeSubjectRequest(lower)) {
 
