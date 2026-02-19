@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // ✅ added useEffect
 import { motion, AnimatePresence } from "framer-motion";
 import { Orbitron } from "next/font/google";
 
@@ -19,6 +19,34 @@ export default function HomePage() {
   const [studentClass, setStudentClass] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+
+  // ✅ FIX: Force arrow keys to scroll page (no UI impact)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+        const active = document.activeElement as HTMLElement;
+
+        // Prevent interfering when typing in inputs
+        if (
+          active &&
+          (active.tagName === "INPUT" ||
+            active.tagName === "TEXTAREA" ||
+            active.tagName === "SELECT")
+        ) {
+          return;
+        }
+
+        e.preventDefault();
+        window.scrollBy({
+          top: e.key === "ArrowDown" ? 120 : -120,
+          behavior: "smooth",
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   function handleEnter() {
     setWarp(true);
