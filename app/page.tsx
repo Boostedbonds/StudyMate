@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react"; // ✅ added useEffect
+import { useState } from "react"; // ❌ removed useEffect
 import { motion, AnimatePresence } from "framer-motion";
 import { Orbitron } from "next/font/google";
 
@@ -19,34 +19,6 @@ export default function HomePage() {
   const [studentClass, setStudentClass] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-
-  // ✅ FIX: Force arrow keys to scroll page (no UI impact)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (["ArrowDown", "ArrowUp"].includes(e.key)) {
-        const active = document.activeElement as HTMLElement;
-
-        // Prevent interfering when typing in inputs
-        if (
-          active &&
-          (active.tagName === "INPUT" ||
-            active.tagName === "TEXTAREA" ||
-            active.tagName === "SELECT")
-        ) {
-          return;
-        }
-
-        e.preventDefault();
-        window.scrollBy({
-          top: e.key === "ArrowDown" ? 120 : -120,
-          behavior: "smooth",
-        });
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   function handleEnter() {
     setWarp(true);
@@ -100,7 +72,7 @@ export default function HomePage() {
         overflowX: "hidden",
       }}
     >
-      {/* ================= INTRO (FROZEN — UNTOUCHED) ================= */}
+      {/* ================= INTRO ================= */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -115,8 +87,6 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-
-            {/* SUN */}
             <motion.div
               style={{
                 position: "absolute",
@@ -142,7 +112,6 @@ export default function HomePage() {
               }}
             />
 
-            {/* TITLE BLOCK */}
             <div
               style={{
                 position: "absolute",
@@ -187,7 +156,6 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* LIGHT BEAM */}
             <motion.div
               style={{
                 position: "absolute",
@@ -213,33 +181,6 @@ export default function HomePage() {
               onClick={handleEnter}
             />
 
-            {/* MOUNTAIN */}
-            <svg
-              viewBox="0 0 1440 800"
-              preserveAspectRatio="none"
-              style={{
-                position: "absolute",
-                bottom: 0,
-                width: "100%",
-                height: "75%",
-                zIndex: 2,
-              }}
-            >
-              <path
-                d="M0,640 C200,600 350,580 550,560 C750,540 950,570 1440,620 L1440,800 L0,800 Z"
-                fill="#061a2d"
-              />
-              <path
-                d="M0,700 C200,650 400,620 600,600 C700,580 760,550 820,600 C1000,650 1200,680 1440,710 L1440,800 L0,800 Z"
-                fill="#04121f"
-              />
-              <path
-                d="M0,730 C200,690 400,660 620,620 C680,590 710,550 720,500 C730,550 760,590 820,620 C1000,660 1200,700 1440,720 L1440,800 L0,800 Z"
-                fill="#000000"
-              />
-            </svg>
-
-            {/* BEGIN THE ASCENT */}
             <motion.div
               onClick={handleEnter}
               style={{
@@ -297,98 +238,26 @@ export default function HomePage() {
             padding: "20px",
           }}
         >
-          <h1
-            style={{
-              fontSize: "clamp(28px, 6vw, 42px)",
-              letterSpacing: "0.45em",
-              fontWeight: 700,
-              color: "#1e293b",
-              marginBottom: "10px",
-              textAlign: "center",
-            }}
-          >
+          <h1 style={{ fontSize: "clamp(28px, 6vw, 42px)", letterSpacing: "0.45em", fontWeight: 700 }}>
             SHAURI
           </h1>
 
-          <p
-            style={{
-              fontSize: "clamp(10px, 2.5vw, 13px)",
-              letterSpacing: "0.30em",
-              color: "#334155",
-              marginBottom: "4px",
-              textAlign: "center",
-            }}
-          >
-            THE COURAGE TO MASTER THE FUTURE
-          </p>
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: "16px", width: "100%", maxWidth: "340px" }}>
+            <input placeholder="Student Name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
 
-          <p
-            style={{
-              fontSize: "clamp(9px, 2.3vw, 11px)",
-              letterSpacing: "0.26em",
-              color: "#64748b",
-              marginBottom: "28px",
-              textAlign: "center",
-            }}
-          >
-            CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
-          </p>
-
-          <form
-            onSubmit={handleSubmit}
-            style={{
-              display: "grid",
-              gap: "16px",
-              width: "100%",
-              maxWidth: "340px",
-            }}
-          >
-            <input
-              placeholder="Student Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={inputStyle}
-            />
-
-            <select
-              value={studentClass}
-              onChange={(e) => setStudentClass(e.target.value)}
-              style={inputStyle}
-            >
+            <select value={studentClass} onChange={(e) => setStudentClass(e.target.value)} style={inputStyle}>
               <option value="">Select Class</option>
               {[6, 7, 8, 9, 10, 11, 12].map((c) => (
                 <option key={c}>Class {c}</option>
               ))}
             </select>
 
-            <input
-              type="password"
-              placeholder="Access Code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              style={inputStyle}
-            />
+            <input type="password" placeholder="Access Code" value={code} onChange={(e) => setCode(e.target.value)} style={inputStyle} />
 
-            {error && (
-              <div style={{ color: "red", fontSize: "13px" }}>{error}</div>
-            )}
+            {error && <div style={{ color: "red", fontSize: "13px" }}>{error}</div>}
 
             <button style={buttonStyle}>STEP IN</button>
           </form>
-
-          <p
-            style={{
-              marginTop: "22px",
-              fontSize: "clamp(9px, 2vw, 10px)",
-              letterSpacing: "0.18em",
-              color: "#64748b",
-              textAlign: "center",
-              maxWidth: "420px",
-            }}
-          >
-            Private. Secure. Used only to guide your learning journey. Never
-            shared.
-          </p>
         </div>
       )}
     </div>

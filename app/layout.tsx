@@ -14,8 +14,25 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-white text-slate-900">
-        {children}
+      <body
+        className="bg-white text-slate-900"
+        style={{
+          margin: 0,
+          padding: 0,
+          height: "100vh",
+          overflow: "hidden", // 🔥 CRITICAL FIX
+        }}
+      >
+        <div
+          style={{
+            height: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          {children}
+        </div>
       </body>
     </html>
   );

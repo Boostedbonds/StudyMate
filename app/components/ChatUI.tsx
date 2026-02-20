@@ -35,6 +35,18 @@ export default function ChatUI({
   const [selectedVoice, setSelectedVoice] =
     useState<SpeechSynthesisVoice | null>(null);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  /* -------------------- AUTO SCROLL -------------------- */
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    containerRef.current.scrollTo({
+      top: containerRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   /* -------------------- LOAD & PICK VOICE -------------------- */
   useEffect(() => {
     if (!("speechSynthesis" in window)) return;
@@ -101,11 +113,20 @@ export default function ChatUI({
 
   return (
     <div
+      ref={containerRef}
+      onKeyDown={(e) => {
+        if (["ArrowUp", "ArrowDown"].includes(e.key)) {
+          e.stopPropagation(); // ✅ prevent page scroll interference
+        }
+      }}
       style={{
         maxWidth: "720px",
         margin: "0 auto",
-        paddingBottom: "120px",
-        paddingTop: "24px",
+        padding: "24px 12px 120px",
+
+        height: "calc(100vh - 140px)", // 🔥 key fix
+        overflowY: "auto",             // 🔥 key fix
+        scrollBehavior: "smooth",
       }}
     >
       {messages.map((m, i) => {
