@@ -87,6 +87,7 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
+            {/* SUN */}
             <motion.div
               style={{
                 position: "absolute",
@@ -112,6 +113,7 @@ export default function HomePage() {
               }}
             />
 
+            {/* TITLE */}
             <div
               style={{
                 position: "absolute",
@@ -156,6 +158,7 @@ export default function HomePage() {
               </p>
             </div>
 
+            {/* LIGHT BEAM */}
             <motion.div
               style={{
                 position: "absolute",
@@ -181,6 +184,33 @@ export default function HomePage() {
               onClick={handleEnter}
             />
 
+            {/* 🔥 MOUNTAIN RESTORED (UNCHANGED DESIGN) */}
+            <svg
+              viewBox="0 0 1440 800"
+              preserveAspectRatio="none"
+              style={{
+                position: "absolute",
+                bottom: 0,
+                width: "100%",
+                height: "100%", // ✅ ONLY FIX APPLIED
+                zIndex: 2,
+              }}
+            >
+              <path
+                d="M0,640 C200,600 350,580 550,560 C750,540 950,570 1440,620 L1440,800 L0,800 Z"
+                fill="#061a2d"
+              />
+              <path
+                d="M0,700 C200,650 400,620 600,600 C700,580 760,550 820,600 C1000,650 1200,680 1440,710 L1440,800 L0,800 Z"
+                fill="#04121f"
+              />
+              <path
+                d="M0,730 C200,690 400,660 620,620 C680,590 710,550 720,500 C730,550 760,590 820,620 C1000,660 1200,700 1440,720 L1440,800 L0,800 Z"
+                fill="#000000"
+              />
+            </svg>
+
+            {/* CTA */}
             <motion.div
               onClick={handleEnter}
               style={{
