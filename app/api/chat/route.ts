@@ -161,79 +161,62 @@ export async function POST(req: NextRequest) {
     /* ================= TEACHER ================= */
 
     if (mode === "teacher") {
-      const name = student?.name || "Student";
-      const cls = student?.class || "";
+  const name = student?.name || "Student";
+  const cls = student?.class || "";
 
-      const clean = lower.replace(/[^\w\s]/g, "").trim();
+  const reply = await callAI([
+    {
+      role: "system",
+      content: GLOBAL_CONTEXT,
+    },
+    {
+      role: "system",
+      content: `
+You are Shauri, a real CBSE teacher and mentor.
 
-      let state = learningStates.get(key) || { stage: "IDLE" };
+STUDENT:
+Name: ${name}
+Class: ${cls}
 
-      /* ===== GREETING ===== */
-      if (isGreeting(clean)) {
-        learningStates.set(key, { stage: "IDLE" });
-        return NextResponse.json({
-          reply: `Hi ${name} 👋 Class ${cls} — what would you like to learn today?`,
-        });
-      }
+BEHAVIOR RULES:
 
-      /* ===== NON-STUDY ===== */
-      if (!looksLikeSubject(clean) && state.stage === "IDLE") {
-        return NextResponse.json({
-          reply: `Let's stay focused 👍 Tell me the subject or chapter you want to learn.`,
-        });
-      }
+1. GREETING:
+- If student says "hi", "hello", etc → respond naturally like:
+  "Hi ${name} 👋 Class ${cls} — what would you like to learn today?"
+- Keep it short and human
 
-      /* ===== START NEW TOPIC ===== */
-      if (state.stage === "IDLE") {
-        state = {
-          stage: "QUESTION",
-          topic: message,
-        };
-      }
+2. CASUAL TALK:
+- If student talks casually → respond briefly
+- Then gently bring focus back to studies
 
-      /* ===== EXPLAIN + QUESTION ===== */
-      if (state.stage === "QUESTION") {
-        const ai = await callAI([
-          { role: "system", content: GLOBAL_CONTEXT },
-          { role: "system", content: TEACHER_PROMPT },
-          {
-            role: "user",
-            content: `Teach first concept of: ${state.topic}`,
-          },
-        ]);
+3. TEACHING STYLE:
+- Teach ONLY ONE concept at a time
+- Max 5–6 lines
+- Use simple CBSE language
+- Use examples when needed
+- DO NOT dump full chapter
 
-        state.stage = "EVALUATE";
-        learningStates.set(key, state);
+4. INTERACTION:
+- After teaching → ask 1–2 short questions
+- If student answers:
+   → correct → move forward
+   → wrong → re-explain simply
 
-        return NextResponse.json({ reply: ai });
-      }
+5. CONTROL:
+- Stay focused on studies
+- Do NOT behave like chatbot
+- Do NOT repeat generic lines
+- Be like a real teacher
 
-      /* ===== EVALUATE ANSWER ===== */
-      if (state.stage === "EVALUATE") {
-        const evaluation = await callAI([
-          { role: "system", content: GLOBAL_CONTEXT },
-          {
-            role: "user",
-            content: `
-Student answer: "${message}"
-
-Check if correct (yes/no) and respond:
-
-If correct:
-- Say correct briefly
-- Move to next concept (short + ask 1 question)
-
-If wrong:
-- Say incorrect
-- Re-explain simply
-- Ask again
+GOAL:
+Make student understand step-by-step, not overwhelm.
 `,
-          },
-        ]);
+    },
+    ...conversation,
+  ]);
 
-        return NextResponse.json({ reply: evaluation });
-      }
-    }
+  return NextResponse.json({ reply });
+}
 
     /* ================= EXAMINER ================= */
 
