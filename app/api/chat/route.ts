@@ -26,77 +26,64 @@ type ExamSession = {
 /* ================= GLOBAL ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri — an AI tutor aligned strictly to NCERT and CBSE.
+You are Shauri — strictly aligned to NCERT and CBSE.
 
-You must:
-- Adapt answers to the student's class level
-- Stay within the syllabus
-- Be clear, human, warm, and helpful
-- ALWAYS remember the student's name and class if provided — use them naturally
+- Adapt to student's class
+- Stay within syllabus
+- Be clear, human, and concise
 `;
 
 /* ================= PROMPTS ================= */
 
-function buildTeacherPrompt(name: string, cls: string) {
-  return `
-You are a real CBSE teacher named Shauri.
+const TEACHER_PROMPT = `
+You are a real CBSE school teacher.
 
-STUDENT INFO (CRITICAL — always remember this):
-- Name: ${name}
-- Class: ${cls}
-- Board: CBSE / NCERT
+STRICT RULES:
+- MAX 3–4 lines only
+- Teach ONLY what is asked
+- NO introductions
+- NO "let's start" or filler lines
+- NO asking what to learn
 
 STYLE:
-- Human, calm, mentor-like
-- Teach ONE concept at a time
-- Max 5–6 lines per reply
-- After explaining → ask 1–2 short questions to check understanding
-
-RULES:
-- You KNOW the student's name is "${name}" and their class is "${cls}" — state this confidently if asked
-- You KNOW the student's syllabus is CBSE Class ${cls} — confirm this confidently if asked
-- If student greets → reply warmly using their name, ask what they want to learn
-- If a topic is mentioned in any previous message → START teaching that topic immediately, do NOT ask again
-- If student asks "do you know my name" → say "Yes! You're ${name}, Class ${cls} student."
-- If student asks "do you know my syllabus" → say "Yes! You follow the CBSE/NCERT Class ${cls} syllabus."
-- NEVER say "I don't know your name" or "I don't have that info"
-- NEVER start a fresh greeting if conversation is already ongoing
-- NEVER dump the full chapter — teach step by step
-- NO repetition of what was already said
-
-FLOW:
-Greet by name (first message only) → Ask topic → Explain → Ask → Wait → Continue
+- Human, calm, clear
+- Start explanation immediately
+- End with one small question (optional)
 `;
-}
 
 const ORAL_PROMPT = `
-You are in ORAL MODE — an interactive spoken quiz.
+You are in ORAL MODE.
 
-- Conversational, short replies only
-- Ask one small question at a time
-- Give immediate feedback on answers
-- Keep it interactive and encouraging
-- Strictly NCERT aligned
+- Conversational
+- Short replies
+- Ask small questions
+- Keep it interactive
 `;
 
 const PROGRESS_PROMPT = `
-Analyze this student's exam performance data.
+Analyze student performance.
 
 - Max 5 lines
-- Clearly state strengths
-- Clearly state weaknesses
-- Give one actionable improvement suggestion
-- Be encouraging but honest
+- Strengths
+- Weaknesses
+- One improvement
 `;
 
 const EXAMINER_PROMPT = `
-Generate a CBSE-style question paper.
+You are a strict CBSE examiner.
 
-Format:
-- Mention subject, class, time limit, and total marks at the top
-- Divide into proper sections (Section A: MCQ, Section B: Short Answer, Section C: Long Answer)
-- Include marks per question
-- No explanations or answers — only the question paper
+- Professional human tone
+- Generate full question paper only
+- No explanation
+- No extra words
+
+FORMAT:
+Class, Subject
+Time & Marks
+
+Section A
+Section B
+Section C
 `;
 
 /* ================= MEMORY ================= */
@@ -110,26 +97,30 @@ function getKey(student?: StudentContext) {
 /* ================= HELPERS ================= */
 
 function isGreeting(text: string) {
-  return ["hi", "hello", "hey", "hii", "helo"].includes(text.trim().toLowerCase());
+  return /^(hi|hello|hey)\b/i.test(text);
 }
 
 function isSubmit(text: string) {
-  return ["submit", "done", "finish", "finished"].includes(text.trim().toLowerCase());
+  return /^(submit|done|finish|finished)\b/i.test(text);
 }
 
 function isStart(text: string) {
-  return text.trim().toLowerCase() === "start";
+  return text === "start";
 }
 
 function looksLikeSubject(text: string) {
-  return /math|science|history|geo|civics|english|hindi|chapter|physics|chemistry|biology|sst|social/i.test(text);
+  return /math|science|history|geo|civics|english|hindi|chapter/i.test(text);
+}
+
+function isDirectStudyRequest(text: string) {
+  return /chapter|exercise|numerical|question|define|what is|explain/i.test(text);
 }
 
 /* ================= AI CALL ================= */
 
 async function callAI(messages: ChatMessage[]) {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return "AI error: Missing API key.";
+  if (!key) return "AI error";
 
   try {
     const res = await fetch(
@@ -138,23 +129,10 @@ async function callAI(messages: ChatMessage[]) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: messages
-            .filter((m) => m.role !== "system") // Gemini doesn't support system role in contents
-            .map((m) => ({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content || "" }],
-            })),
-          // Inject system messages via systemInstruction instead
-          systemInstruction: {
-            parts: [
-              {
-                text: messages
-                  .filter((m) => m.role === "system")
-                  .map((m) => m.content)
-                  .join("\n\n"),
-              },
-            ],
-          },
+          contents: messages.map((m) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content || "" }],
+          })),
         }),
       }
     );
@@ -162,10 +140,11 @@ async function callAI(messages: ChatMessage[]) {
     const data = await res.json();
 
     return (
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to respond."
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Unable to respond."
     );
   } catch {
-    return "AI server error. Please try again.";
+    return "AI server error.";
   }
 }
 
@@ -190,9 +169,9 @@ export async function POST(req: NextRequest) {
     const lower = message.toLowerCase().trim();
     const key = getKey(student);
 
-    // Build conversation WITH the new user message appended
+    // 🔥 LIMIT CONTEXT (prevents repetition)
     const conversation: ChatMessage[] = [
-      ...history,
+      ...history.slice(-4),
       { role: "user", content: message },
     ];
 
@@ -200,19 +179,41 @@ export async function POST(req: NextRequest) {
 
     if (mode === "teacher") {
       const name = student?.name || "Student";
-      const cls = student?.class || "your";
+      const cls = student?.class || "";
 
-      // Only do a shortcut greeting on the VERY first message (no history)
-      if (isGreeting(lower) && history.length === 0) {
+      // Greeting
+      if (isGreeting(lower)) {
         return NextResponse.json({
-          reply: `Hi ${name}! 👋 Great to see you. You're in Class ${cls}, right? What topic would you like to learn today?`,
+          reply: `Hi ${name} 👋`,
         });
       }
 
-      // For everything else (including identity questions), let the AI handle it
+      // 🔥 FORCE TEACHING MODE (MAIN FIX)
+      if (looksLikeSubject(lower) || isDirectStudyRequest(lower)) {
+        const reply = await callAI([
+          { role: "system", content: GLOBAL_CONTEXT },
+          { role: "system", content: TEACHER_PROMPT },
+          {
+            role: "system",
+            content: `Student name is ${name}. Class is ${cls}. Start teaching immediately.`,
+          },
+          {
+            role: "user",
+            content: `Explain clearly: ${message}`,
+          },
+        ]);
+
+        return NextResponse.json({ reply });
+      }
+
+      // Normal fallback
       const reply = await callAI([
         { role: "system", content: GLOBAL_CONTEXT },
-        { role: "system", content: buildTeacherPrompt(name, cls) },
+        { role: "system", content: TEACHER_PROMPT },
+        {
+          role: "system",
+          content: `Student name is ${name}. Class is ${cls}.`,
+        },
         ...conversation,
       ]);
 
@@ -227,7 +228,7 @@ export async function POST(req: NextRequest) {
 
       if (isGreeting(lower) && session.status === "IDLE") {
         return NextResponse.json({
-          reply: `Hi ${student?.name || "Student"}! 👋 I'm your examiner for Class ${student?.class || ""}.\n\nPlease tell me the subject and chapters you want to be tested on.`,
+          reply: `Hello ${student?.name || "Student"}.\nProvide subject and chapters.`,
         });
       }
 
@@ -235,12 +236,8 @@ export async function POST(req: NextRequest) {
         const evaluation = await callAI([
           { role: "system", content: GLOBAL_CONTEXT },
           {
-            role: "system",
-            content: `You are evaluating a Class ${student?.class || ""} CBSE student's exam answers. Give marks, feedback per question, and a final score out of total marks.`,
-          },
-          {
             role: "user",
-            content: `Question Paper:\n${session.questionPaper}\n\nStudent Answers:\n${session.answers.join("\n")}`,
+            content: `Evaluate answers:\n${session.answers.join("\n")}`,
           },
         ]);
 
@@ -248,7 +245,7 @@ export async function POST(req: NextRequest) {
           student_name: student?.name || "",
           class: student?.class || "",
           subject: session.subject || "General",
-          percentage: 60, // TODO: parse actual score from evaluation
+          percentage: 60,
           created_at: new Date().toISOString(),
         });
 
@@ -260,9 +257,7 @@ export async function POST(req: NextRequest) {
       if (session.status === "IN_EXAM") {
         session.answers.push(message);
         examSessions.set(key, session);
-        return NextResponse.json({
-          reply: "Answer recorded ✅ Continue with the next question, or type **submit** when done.",
-        });
+        return NextResponse.json({ reply: "" });
       }
 
       if (looksLikeSubject(lower) && session.status === "IDLE") {
@@ -274,7 +269,7 @@ export async function POST(req: NextRequest) {
         });
 
         return NextResponse.json({
-          reply: `Got it! I'll prepare a question paper for: **${message}**.\n\nType **start** when you're ready to begin.`,
+          reply: "Subject noted. Type START.",
         });
       }
 
@@ -284,7 +279,7 @@ export async function POST(req: NextRequest) {
           { role: "system", content: EXAMINER_PROMPT },
           {
             role: "user",
-            content: `Class ${student?.class || ""}, ${session.subjectRequest}`,
+            content: `Class ${student?.class}, ${session.subjectRequest}`,
           },
         ]);
 
@@ -301,22 +296,16 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({
-        reply: "Please tell me the subject and chapters you want to be examined on.",
+        reply: "Provide subject and chapters.",
       });
     }
 
     /* ================= ORAL ================= */
 
     if (mode === "oral") {
-      const name = student?.name || "Student";
-      const cls = student?.class || "";
-
       const reply = await callAI([
         { role: "system", content: GLOBAL_CONTEXT },
-        {
-          role: "system",
-          content: `${ORAL_PROMPT}\n\nStudent: ${name}, Class ${cls}`,
-        },
+        { role: "system", content: ORAL_PROMPT },
         ...conversation,
       ]);
 
@@ -333,7 +322,7 @@ export async function POST(req: NextRequest) {
         { role: "system", content: PROGRESS_PROMPT },
         {
           role: "user",
-          content: `Student: ${student?.name || "Unknown"}, Class: ${student?.class || "Unknown"}\n\nAttempts:\n${JSON.stringify(attempts, null, 2)}`,
+          content: JSON.stringify(attempts),
         },
       ]);
 
@@ -343,7 +332,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: "Invalid mode." });
   } catch {
     return NextResponse.json(
-      { reply: "Server error. Please try again." },
+      { reply: "Server error. Try again." },
       { status: 500 }
     );
   }
