@@ -13,6 +13,7 @@ const ACCESS_CODE = "0330";
 
 export default function HomePage() {
   const [entered, setEntered] = useState(false);
+  const [warp, setWarp] = useState(false);
 
   const [name, setName] = useState("");
   const [studentClass, setStudentClass] = useState("");
@@ -20,22 +21,25 @@ export default function HomePage() {
   const [error, setError] = useState("");
 
   function handleEnter() {
-    setEntered(true);
+    setWarp(true);
+    setTimeout(() => setEntered(true), 900);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    if (!name.trim()) return setError("Enter name");
+    if (!name.trim()) return setError("Enter student name");
     if (!studentClass) return setError("Select class");
-    if (code !== ACCESS_CODE) return setError("Invalid code");
+    if (code !== ACCESS_CODE) return setError("Invalid access code");
 
-    localStorage.setItem(
-      "shauri_student",
-      JSON.stringify({ name, class: studentClass, board: "CBSE" })
-    );
+    const student = {
+      name: name.trim(),
+      class: studentClass,
+      board: "CBSE",
+    };
 
+    localStorage.setItem("shauri_student", JSON.stringify(student));
     window.location.href = "/modes";
   }
 
@@ -50,39 +54,52 @@ export default function HomePage() {
               position: "fixed",
               inset: 0,
               background: "linear-gradient(to top, #000814, #001d3d, #0a2540)",
+              overflow: "hidden",
             }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
             {/* SUN */}
             <div
               style={{
                 position: "absolute",
-                top: "22%",
+                top: "28%",
                 left: "50%",
                 transform: "translate(-50%, -50%)",
-                width: 520,
-                height: 520,
+                width: "520px",
+                height: "520px",
                 borderRadius: "50%",
                 background:
                   "radial-gradient(circle, rgba(255,215,120,0.95) 0%, rgba(255,160,40,0.5) 50%, transparent 80%)",
-                filter: "blur(8px)",
+                filter: "blur(10px)",
               }}
             />
 
             {/* TITLE */}
-            <div style={{ textAlign: "center", marginTop: "18%" }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "28%",
+                width: "100%",
+                textAlign: "center",
+                zIndex: 5,
+              }}
+            >
               <h1
                 style={{
                   fontSize: "72px",
-                  letterSpacing: "0.6em",
+                  letterSpacing: "0.5em",
+                  fontWeight: 700,
                   color: "#FFD700",
                   textShadow:
-                    "0 0 25px rgba(255,215,120,0.8), 0 0 50px rgba(255,200,80,0.5)",
+                    "0 0 25px rgba(255,215,120,0.9), 0 0 60px rgba(255,215,120,0.6)",
                 }}
               >
                 SHAURI
               </h1>
 
-              <p style={{ color: "#fff", marginTop: 10 }}>
+              <p style={{ color: "#ffffff", marginTop: 10 }}>
                 THE COURAGE TO MASTER THE FUTURE
               </p>
 
@@ -91,15 +108,26 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* CTA */}
-            <div
+            {/* MOUNTAIN */}
+            <svg
+              viewBox="0 0 1440 800"
+              style={{ position: "absolute", bottom: 0 }}
+            >
+              <path
+                d="M0,730 C400,650 700,600 720,500 C740,600 1000,650 1440,720 L1440,800 L0,800 Z"
+                fill="black"
+              />
+            </svg>
+
+            {/* CTA (FIXED ABOVE PEAK) */}
+            <motion.div
               onClick={handleEnter}
               style={{
                 position: "absolute",
-                bottom: "28%", // ✅ above peak
+                bottom: "42%",
                 left: "50%",
                 transform: "translateX(-50%)",
-                padding: "14px 34px",
+                padding: "14px 36px",
                 borderRadius: "999px",
                 border: "1px solid rgba(255,215,0,0.6)",
                 color: "#FFD700",
@@ -108,30 +136,39 @@ export default function HomePage() {
                 overflow: "hidden",
               }}
             >
-              {/* running light */}
+              {/* running golden light */}
               <div
                 style={{
                   position: "absolute",
-                  inset: 0,
-                  borderRadius: "999px",
+                  top: 0,
+                  left: "-50%",
+                  width: "50%",
+                  height: "100%",
                   background:
-                    "linear-gradient(120deg, transparent, rgba(255,215,0,0.6), transparent)",
-                  animation: "run 2.5s linear infinite",
+                    "linear-gradient(120deg, transparent, rgba(255,215,0,0.8), transparent)",
+                  animation: "run 2s linear infinite",
                 }}
               />
 
-              <span style={{ position: "relative" }}>
-                BEGIN THE ASCENT
-              </span>
-            </div>
+              BEGIN THE ASCENT
+            </motion.div>
 
-            {/* MOUNTAIN */}
-            <svg viewBox="0 0 1440 800" style={{ position: "absolute", bottom: 0 }}>
-              <path
-                d="M0,730 C400,650 700,600 720,500 C740,600 1000,650 1440,720 L1440,800 L0,800 Z"
-                fill="black"
+            <style>
+              {`
+              @keyframes run {
+                0% { left: -50%; }
+                100% { left: 120%; }
+              }
+              `}
+            </style>
+
+            {warp && (
+              <motion.div
+                style={{ position: "absolute", inset: 0, background: "white" }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
               />
-            </svg>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -141,96 +178,88 @@ export default function HomePage() {
         <div
           style={{
             minHeight: "100vh",
-            background: "linear-gradient(to bottom, #e6d3a3, #d4c08f)",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
             justifyContent: "center",
+            alignItems: "center",
+            background: "#d8c8a4",
           }}
         >
           <h1
             style={{
-              fontSize: "44px",
-              letterSpacing: "0.5em",
-              color: "#0f172a",
+              fontSize: "52px",
+              letterSpacing: "0.45em",
+              marginBottom: 12,
+              color: "#0a2540",
             }}
           >
             SHAURI
           </h1>
 
-          <p style={{ marginTop: 12, marginBottom: 28 }}>
+          <p style={{ marginBottom: 30 }}>
             CBSE-Aligned. Adaptive. Built for your growth.
           </p>
 
           <form
             onSubmit={handleSubmit}
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              width: 320,
+              display: "grid",
+              gap: 18,
+              width: "320px",
             }}
           >
             <input
+              placeholder="Student Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Student Name"
-              style={input}
+              style={inputStyle}
             />
 
             <select
               value={studentClass}
               onChange={(e) => setStudentClass(e.target.value)}
-              style={input}
+              style={inputStyle}
             >
               <option value="">Select Class</option>
-              {[6,7,8,9,10,11,12].map(c => (
+              {[6, 7, 8, 9, 10, 11, 12].map((c) => (
                 <option key={c}>Class {c}</option>
               ))}
             </select>
 
             <input
               type="password"
+              placeholder="Access Code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Access Code"
-              style={input}
+              style={inputStyle}
             />
 
-            <button
-              style={{
-                padding: "14px",
-                borderRadius: "999px",
-                border: "none",
-                background: "linear-gradient(90deg, #FFD700, #D4AF37)",
-                fontWeight: 600,
-                letterSpacing: "0.1em",
-                cursor: "pointer",
-              }}
-            >
+            <button style={ctaStyle}>
               INITIATE ASCENT
             </button>
           </form>
 
-          <p style={{ marginTop: 28 }}>
+          <p style={{ marginTop: 40, opacity: 0.7 }}>
             Discipline today builds the confidence of tomorrow.
           </p>
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes run {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-      `}</style>
     </div>
   );
 }
 
-const input = {
+const inputStyle = {
   padding: "12px",
   borderRadius: "10px",
   border: "1px solid #ccc",
   width: "100%",
+};
+
+const ctaStyle = {
+  padding: "14px",
+  borderRadius: "999px",
+  border: "none",
+  background: "linear-gradient(to right, #FFD700, #d4af37)",
+  letterSpacing: "0.15em",
+  fontWeight: 600,
 };
