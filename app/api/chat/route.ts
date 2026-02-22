@@ -24,26 +24,31 @@ const TEACHER_PROMPT = `
 You are in TEACHER MODE.
 
 Rules:
-- Talk like a real teacher (natural, human)
-- Use student's name + class
+- Speak like a real classroom teacher (warm, human, natural)
+- No robotic or repeated greetings
+- Use student's name naturally (not every line)
 - Keep answers short (2–4 lines)
+- Be clear, simple, and engaging
 - Stay strictly within NCERT/CBSE
-- If student asks non-study → gently bring back to studies
+- If student goes off-topic → gently guide back
 `;
 
 const EXAMINER_PROMPT = `
 You are a STRICT CBSE BOARD EXAMINER.
 
-- Generate FULL paper in ONE response
-- No interaction during exam
-- Evaluate VERY strictly
+RULES:
+- Generate FULL question paper in ONE response
+- Include sections, marks, instructions (CBSE format)
+- NO explanations, NO interaction after paper
+- Silent exam mode after paper
 
-Return ONLY JSON for evaluation:
+For evaluation:
+Return ONLY JSON:
 {
   "marksObtained": number,
   "totalMarks": number,
   "percentage": number,
-  "detailedEvaluation": "..."
+  "detailedEvaluation": "strict CBSE-style feedback"
 }
 `;
 
@@ -107,7 +112,7 @@ export async function POST(req: NextRequest) {
     const name = decodeURIComponent(req.cookies.get("shauri_name")?.value || "Student");
     const cls = decodeURIComponent(req.cookies.get("shauri_class")?.value || "Class");
 
-    const studentContext = `Name: ${name}, Class: ${cls}`;
+    const studentContext = `Student Name: ${name}, Class: ${cls}`;
 
     /* ================= EXAMINER ================= */
 
@@ -123,17 +128,21 @@ export async function POST(req: NextRequest) {
 
       let session = sessions?.[0];
 
-      /* CREATE */
+      /* CREATE SESSION */
       if (!session) {
-        await supabase.from("exam_sessions").insert({
-          student_name: name,
-          class: cls,
-          status: "idle",
-          answers: [],
-        });
+        const { data: newSession } = await supabase
+          .from("exam_sessions")
+          .insert({
+            student_name: name,
+            class: cls,
+            status: "idle",
+            answers: [],
+          })
+          .select()
+          .single();
 
         return NextResponse.json({
-          reply: `Hi ${name}, which subject do you want to be tested on?`,
+          reply: `Alright ${name}, which subject would you like to take a test in today?`,
         });
       }
 
@@ -144,7 +153,7 @@ export async function POST(req: NextRequest) {
 
         if (!subject) {
           return NextResponse.json({
-            reply: "Please tell me the subject (e.g., Geography, History).",
+            reply: `Tell me the subject clearly (like Geography, History, Science).`,
           });
         }
 
@@ -153,11 +162,8 @@ export async function POST(req: NextRequest) {
           .update({ subject, chapters, status: "ready" })
           .eq("id", session.id);
 
-        session.status = "ready";
-        session.subject = subject;
-
         return NextResponse.json({
-          reply: `Subject noted: ${subject}. Type START to begin.`,
+          reply: `Got it — ${subject}. When you're ready, type START.`,
         });
       }
 
@@ -165,7 +171,7 @@ export async function POST(req: NextRequest) {
       if (session.status === "ready") {
         if (!/\b(start|begin)\b/.test(lower)) {
           return NextResponse.json({
-            reply: "Type START to begin the exam.",
+            reply: `Type START whenever you're ready to begin.`,
           });
         }
 
@@ -175,7 +181,7 @@ export async function POST(req: NextRequest) {
           { role: "system", content: studentContext },
           {
             role: "user",
-            content: `Create CBSE paper for ${session.subject}`,
+            content: `Create a complete CBSE question paper for ${session.subject} for ${cls}.`,
           },
         ]);
 
@@ -189,14 +195,12 @@ export async function POST(req: NextRequest) {
           })
           .eq("id", session.id);
 
-        session.status = "started";
-
         return NextResponse.json({ reply: paper });
       }
 
       /* STARTED → ANSWERS */
       if (session.status === "started") {
-        const isSubmit = /\b(submit|done|finish)\b/.test(lower);
+        const isSubmit = /\b(submit|done|finish|end test)\b/.test(lower);
 
         if (!isSubmit) {
           const { data: latest } = await supabase
@@ -205,15 +209,22 @@ export async function POST(req: NextRequest) {
             .eq("id", session.id)
             .single();
 
-          const updated = [...(latest?.answers || []), message];
+          const updatedAnswers = [...(latest?.answers || []), message];
 
           await supabase
             .from("exam_sessions")
-            .update({ answers: updated })
+            .update({ answers: updatedAnswers })
             .eq("id", session.id);
 
           return NextResponse.json({ reply: "..." });
         }
+
+        /* FETCH FINAL ANSWERS */
+        const { data: finalSession } = await supabase
+          .from("exam_sessions")
+          .select("*")
+          .eq("id", session.id)
+          .single();
 
         const result = await callGemini([
           { role: "system", content: GLOBAL_CONTEXT },
@@ -221,12 +232,13 @@ export async function POST(req: NextRequest) {
           {
             role: "user",
             content: `
-Evaluate:
+Evaluate strictly as CBSE examiner.
 
-${session.paper}
+Question Paper:
+${finalSession.paper}
 
-Answers:
-${(session.answers || []).join("\n")}
+Student Answers:
+${(finalSession.answers || []).join("\n")}
 `,
           },
         ]);
