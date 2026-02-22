@@ -23,59 +23,54 @@ type ExamSession = {
   startedAt?: number;
 };
 
-/* 🔥 NEW: Learning State */
-type LearningState = {
-  stage: "IDLE" | "EXPLAIN" | "QUESTION" | "EVALUATE";
-  topic?: string;
-  lastQuestion?: string;
-};
-
 /* ================= GLOBAL ================= */
 
 const GLOBAL_CONTEXT = `
 You are Shauri — aligned strictly to NCERT and CBSE.
-
-You must:
-- Adapt answers to student's class
-- Stay within syllabus
-- Be clear, human, and helpful
+Adapt by class. Be clear, human, and structured.
 `;
 
-/* ================= TEACHER PROMPT ================= */
+/* ================= PROMPTS ================= */
 
 const TEACHER_PROMPT = `
-You are a CBSE teacher.
+You are a real CBSE teacher.
 
-STRICT RULES:
-- Teach ONLY ONE concept at a time
-- Keep explanation short (max 5 lines)
-- Use simple language
-- After explanation → ask 1 short question
-- DO NOT continue until student answers
-- If student is wrong → re-explain simply
-- If correct → move to next concept
+STRICT BEHAVIOR:
 
-DO NOT:
-- Dump full chapter
-- Give long answers
+1. GREETING:
+- If student says hi → reply once:
+  "Hi {name} 👋 Class {class} — what would you like to learn?"
+- Never repeat greeting again
+
+2. TOPIC DETECTION:
+- If student mentions subject/chapter → START TEACHING immediately
+- Never ask again "what do you want to learn"
+
+3. TEACHING:
+- Only ONE concept
+- Max 5 lines
+- Simple CBSE explanation
+- Then ask 1–2 short questions
+
+4. ADAPTIVE:
+- If correct → next concept
+- If wrong → re-explain simply
+
+5. DO NOT:
+- Repeat yourself
+- Dump chapter
+- Act robotic
 `;
 
-/* ================= EXAMINER PROMPT ================= */
-
 const EXAMINER_PROMPT = `
-Generate CBSE question paper.
-
-- Follow board pattern strictly
-- Include sections, marks, time
-- No explanation
+Generate a CBSE question paper.
+Include sections, marks, time.
+No explanations.
 `;
 
 /* ================= SESSION ================= */
 
 const examSessions = new Map<string, ExamSession>();
-
-/* 🔥 NEW: Learning Memory */
-const learningStates = new Map<string, LearningState>();
 
 function getKey(student?: StudentContext) {
   return `${student?.name || "anon"}_${student?.class || "x"}`;
@@ -150,8 +145,10 @@ export async function POST(req: NextRequest) {
       "";
 
     const lower = message.toLowerCase().trim();
-
     const key = getKey(student);
+
+    const name = student?.name || "Student";
+    const cls = student?.class || "";
 
     const conversation: ChatMessage[] = [
       ...history,
@@ -161,62 +158,43 @@ export async function POST(req: NextRequest) {
     /* ================= TEACHER ================= */
 
     if (mode === "teacher") {
-  const name = student?.name || "Student";
-  const cls = student?.class || "";
+      // ✅ greeting handled BEFORE AI
+      if (isGreeting(lower)) {
+        return NextResponse.json({
+          reply: `Hi ${name} 👋 Class ${cls} — what would you like to learn today?`,
+        });
+      }
 
-  const reply = await callAI([
-    {
-      role: "system",
-      content: GLOBAL_CONTEXT,
-    },
-    {
-      role: "system",
-      content: `
-You are Shauri, a real CBSE teacher and mentor.
+      // ✅ if topic detected → go to AI (NO BLOCKING)
+      if (!looksLikeSubject(lower) && history.length > 0) {
+        return NextResponse.json({
+          reply: `Let’s stay focused 👍 Tell me the subject or chapter.`,
+        });
+      }
 
-STUDENT:
-Name: ${name}
-Class: ${cls}
+      const reply = await callAI([
+        { role: "system", content: GLOBAL_CONTEXT },
+        {
+          role: "system",
+          content: TEACHER_PROMPT.replace("{name}", name).replace(
+            "{class}",
+            cls
+          ),
+        },
+        ...conversation,
+      ]);
 
-BEHAVIOR RULES:
+      // ✅ optional learning log (safe)
+      await supabase.from("student_memory").insert({
+        student_name: name,
+        class: cls,
+        mode: "teacher",
+        message,
+        created_at: new Date().toISOString(),
+      });
 
-1. GREETING:
-- If student says "hi", "hello", etc → respond naturally like:
-  "Hi ${name} 👋 Class ${cls} — what would you like to learn today?"
-- Keep it short and human
-
-2. CASUAL TALK:
-- If student talks casually → respond briefly
-- Then gently bring focus back to studies
-
-3. TEACHING STYLE:
-- Teach ONLY ONE concept at a time
-- Max 5–6 lines
-- Use simple CBSE language
-- Use examples when needed
-- DO NOT dump full chapter
-
-4. INTERACTION:
-- After teaching → ask 1–2 short questions
-- If student answers:
-   → correct → move forward
-   → wrong → re-explain simply
-
-5. CONTROL:
-- Stay focused on studies
-- Do NOT behave like chatbot
-- Do NOT repeat generic lines
-- Be like a real teacher
-
-GOAL:
-Make student understand step-by-step, not overwhelm.
-`,
-    },
-    ...conversation,
-  ]);
-
-  return NextResponse.json({ reply });
-}
+      return NextResponse.json({ reply });
+    }
 
     /* ================= EXAMINER ================= */
 
@@ -226,9 +204,7 @@ Make student understand step-by-step, not overwhelm.
 
       if (isGreeting(lower) && session.status === "IDLE") {
         return NextResponse.json({
-          reply: `Hi ${student?.name || "Student"}, Class ${
-            student?.class || ""
-          }.\nI'm your examiner.\n\nTell subject and chapters.`,
+          reply: `Hi ${name}, Class ${cls}. I'm your examiner.\nTell subject & chapters.`,
         });
       }
 
@@ -237,17 +213,13 @@ Make student understand step-by-step, not overwhelm.
           { role: "system", content: GLOBAL_CONTEXT },
           {
             role: "user",
-            content: `
-Evaluate answers:
-
-${session.answers.join("\n")}
-`,
+            content: `Evaluate answers:\n${session.answers.join("\n")}`,
           },
         ]);
 
         await supabase.from("exam_attempts").insert({
-          student_name: student?.name || "",
-          class: student?.class || "",
+          student_name: name,
+          class: cls,
           subject: session.subject || "General",
           percentage: 60,
           created_at: new Date().toISOString(),
@@ -283,7 +255,7 @@ ${session.answers.join("\n")}
           { role: "system", content: EXAMINER_PROMPT },
           {
             role: "user",
-            content: `Class ${student?.class}, ${session.subjectRequest}`,
+            content: `Class ${cls}, ${session.subjectRequest}`,
           },
         ]);
 
