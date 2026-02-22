@@ -11,45 +11,56 @@ type ChatMessage = {
 /* ================= GLOBAL CONTEXT ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri, strictly aligned to:
-- NCERT textbooks
-- CBSE syllabus
-- Board exam pattern
-Never go outside CBSE.
+You are Shauri.
+
+Core Identity:
+- You are a real human-like teacher in a classroom
+- You speak naturally, not like a system or bot
+
+Boundaries:
+- For academic questions → strictly NCERT / CBSE
+- For personal/basic questions → answer normally like a human
+
+Critical Behavior:
+- ALWAYS respond to EXACT user question
+- NEVER ignore or override user input
+- NEVER restart conversation
+- NEVER give generic “let’s start” replies
 `;
 
-/* ================= PROMPTS ================= */
+/* ================= TEACHER PROMPT ================= */
 
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
 
-STRICT RULES:
-- ALWAYS answer EXACTLY what the student asked
-- NEVER ignore the question
-- NEVER change topic
-- If student asks personal/basic question (like name), answer directly
-- No repeated greetings
-- No "let's start" type replies
-- Keep it short (2–4 lines)
+ABSOLUTE RULES:
+1. Answer EXACTLY what the student asked
+2. If question = "what is your name"
+   → reply naturally (e.g., "I'm Shauri, your learning companion.")
+3. DO NOT redirect
+4. DO NOT give generic study intro
+5. DO NOT behave like first message every time
 
 STYLE:
-- Human, natural classroom tone
-- Calm, helpful, to the point
-- Use name only where natural
+- Human, warm, classroom tone
+- Short responses (1–3 lines)
+- No robotic phrasing
+- No repetition
 
-IMPORTANT:
-- Do NOT restart conversation
-- Do NOT behave like first message every time
+FAIL-SAFE:
+If you are about to give a generic reply → STOP and answer the question directly instead.
 `;
+
+/* ================= EXAMINER PROMPT ================= */
 
 const EXAMINER_PROMPT = `
 You are a STRICT CBSE BOARD EXAMINER.
 
 RULES:
 - Generate FULL question paper in ONE response
-- Include sections, marks, instructions (CBSE format)
-- NO explanations, NO interaction after paper
-- Silent exam mode after paper
+- Include sections, marks, instructions
+- NO interaction after paper
+- Silent exam mode
 
 For evaluation:
 Return ONLY JSON:
@@ -116,12 +127,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const mode = body?.mode;
     const message = (body?.message || "").trim();
-    const lower = message.toLowerCase();
 
     const name = decodeURIComponent(req.cookies.get("shauri_name")?.value || "Student");
     const cls = decodeURIComponent(req.cookies.get("shauri_class")?.value || "Class");
 
-    const studentContext = `Student Name: ${name}, Class: ${cls}`;
+    const studentContext = `Student: ${name}, ${cls}`;
 
     /* ================= EXAMINER ================= */
 
@@ -137,7 +147,6 @@ export async function POST(req: NextRequest) {
 
       let session = sessions?.[0];
 
-      /* CREATE SESSION */
       if (!session) {
         await supabase.from("exam_sessions").insert({
           student_name: name,
@@ -147,11 +156,10 @@ export async function POST(req: NextRequest) {
         });
 
         return NextResponse.json({
-          reply: `Alright ${name}, which subject would you like to take a test in today?`,
+          reply: `Alright ${name}, which subject would you like to be tested on?`,
         });
       }
 
-      /* IDLE → SUBJECT */
       if (session.status === "idle") {
         const subject = extractSubject(message);
         const chapters = extractChapters(message);
@@ -168,15 +176,14 @@ export async function POST(req: NextRequest) {
           .eq("id", session.id);
 
         return NextResponse.json({
-          reply: `Got it — ${subject}. Type START when you're ready.`,
+          reply: `Got it — ${subject}. Type START to begin.`,
         });
       }
 
-      /* READY → START */
       if (session.status === "ready") {
-        if (!/\b(start|begin)\b/.test(lower)) {
+        if (!/\b(start|begin)\b/.test(message.toLowerCase())) {
           return NextResponse.json({
-            reply: `Type START to begin the exam.`,
+            reply: `Type START to begin.`,
           });
         }
 
@@ -187,7 +194,7 @@ export async function POST(req: NextRequest) {
           },
           {
             role: "user",
-            content: `Create a complete CBSE question paper for ${session.subject} for ${cls}.`,
+            content: `Create a full CBSE paper for ${session.subject} (${cls})`,
           },
         ]);
 
@@ -196,17 +203,15 @@ export async function POST(req: NextRequest) {
           .update({
             paper,
             status: "started",
-            started_at: new Date().toISOString(),
-            duration_min: 60,
+            answers: [],
           })
           .eq("id", session.id);
 
         return NextResponse.json({ reply: paper });
       }
 
-      /* STARTED → ANSWERS */
       if (session.status === "started") {
-        const isSubmit = /\b(submit|done|finish|end test)\b/.test(lower);
+        const isSubmit = /\b(submit|done|finish)\b/.test(message.toLowerCase());
 
         if (!isSubmit) {
           const { data: latest } = await supabase
@@ -215,11 +220,11 @@ export async function POST(req: NextRequest) {
             .eq("id", session.id)
             .single();
 
-          const updatedAnswers = [...(latest?.answers || []), message];
+          const updated = [...(latest?.answers || []), message];
 
           await supabase
             .from("exam_sessions")
-            .update({ answers: updatedAnswers })
+            .update({ answers: updated })
             .eq("id", session.id);
 
           return NextResponse.json({ reply: "..." });
@@ -239,12 +244,12 @@ export async function POST(req: NextRequest) {
           {
             role: "user",
             content: `
-Evaluate strictly as CBSE examiner.
+Evaluate strictly:
 
-Question Paper:
+Paper:
 ${finalSession.paper}
 
-Student Answers:
+Answers:
 ${(finalSession.answers || []).join("\n")}
 `,
           },
@@ -269,7 +274,7 @@ ${(finalSession.answers || []).join("\n")}
         },
         {
           role: "user",
-          content: `Student asked: ${message}`,
+          content: message,
         },
       ]);
 
@@ -277,7 +282,7 @@ ${(finalSession.answers || []).join("\n")}
     }
 
     return NextResponse.json({ reply: "Invalid mode" });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ reply: "Server error" }, { status: 500 });
   }
 }
