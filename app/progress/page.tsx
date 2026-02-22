@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header";
-import { supabase } from "../lib/supabase";
+import { supabaseClient as supabase } from "../lib/supabase-client";
 
 type ExamAttempt = {
   id: string;
@@ -47,7 +47,6 @@ export default function ProgressPage() {
   }, []);
 
   async function fetchAttempts() {
-    // ✅ FIXED: read from localStorage, not cookies
     let name = "";
     let cls = "";
     try {
@@ -60,7 +59,6 @@ export default function ProgressPage() {
     } catch {}
 
     if (!name || !cls) {
-      // fallback to local exam attempts if no student context
       try {
         const local = localStorage.getItem("shauri_exam_attempts");
         if (local) {
@@ -148,7 +146,6 @@ export default function ProgressPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ✅ FIXED: proper plain text report instead of fake PDF
   function generateReport() {
     const content = [
       "SHAURI PROGRESS REPORT",
@@ -243,13 +240,7 @@ export default function ProgressPage() {
         {subjects.length === 0 ? (
           <p>No exam data available yet. Complete an exam in Examiner Mode first.</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: 40,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 40 }}>
             <div
               style={{
                 background: "#fff",
@@ -273,14 +264,7 @@ export default function ProgressPage() {
                       flex: 1,
                     }}
                   >
-                    <div
-                      style={{
-                        height: barHeight,
-                        width: 40,
-                        background: s.color,
-                        borderRadius: 8,
-                      }}
-                    />
+                    <div style={{ height: barHeight, width: 40, background: s.color, borderRadius: 8 }} />
                     <div style={{ marginTop: 10, fontSize: 13 }}>{s.subject}</div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{s.latest}%</div>
                     <div style={{ fontSize: 11, color: "#64748b" }}>{s.band}</div>
