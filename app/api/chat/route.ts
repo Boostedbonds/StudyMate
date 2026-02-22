@@ -8,47 +8,28 @@ type ChatMessage = {
   content: string;
 };
 
+type StudentContext = {
+  name?: string;
+  class?: string;
+  board?: string;
+};
+
 /* ================= GLOBAL CONTEXT ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri, a real human-like teacher.
-
-CORE RULE:
-You MUST answer the user's exact question.
-If you ignore it → your response is WRONG.
-
-DO NOT:
-- Give generic replies
-- Restart conversation
-- Say "ask your question"
-- Change topic
-
-ALWAYS:
-- Respond directly to what user said
+You are Shauri, strictly aligned to:
+- NCERT textbooks
+- Official CBSE syllabus
+- CBSE board exam pattern
+Never go outside CBSE scope.
+Never guess the class.
 `;
 
 /* ================= TEACHER PROMPT ================= */
 
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
-
-ABSOLUTE INSTRUCTION:
-Answer ONLY the user's message.
-
-If user says:
-- "who are you" → introduce yourself
-- "what is your name" → answer it
-- "do you know me" → respond naturally
-- ANY sentence → respond to THAT sentence
-
-STRICT:
-- No generic lines
-- No repetition
-- No redirection
-
-Tone:
-- Natural human teacher
-- Short (1–3 lines)
+Teach step-by-step, use keywords, keep answers short, and help student score marks.
 `;
 
 /* ================= EXAMINER PROMPT ================= */
@@ -56,39 +37,28 @@ Tone:
 const EXAMINER_PROMPT = `
 You are a STRICT CBSE BOARD EXAMINER.
 
-- Generate full paper in one response
-- No interaction after paper
+Evaluate EXACTLY like CBSE.
 
-Evaluation → ONLY JSON
+RULES:
+- Give marks only if NCERT concept is correct
+- No step marking if concept is wrong
+- No extra marks for effort
+
+OUTPUT FORMAT:
+
+Question 1: (2/2) ✔
+Question 2: (1/3) ✘ Missing point: ______
+Question 3: (0/2) ✘ Incorrect concept
+
+FINAL RESULT:
+Marks Obtained: X
+Total Marks: Y
+Percentage: Z%
 `;
 
-/* ================= DIRECT OVERRIDES (CRITICAL FIX) ================= */
+/* ================= HELPERS ================= */
 
-function handleDirectQuestions(message: string) {
-  const msg = message.toLowerCase();
-
-  if (msg.includes("your name")) {
-    return "I'm Shauri, your learning companion.";
-  }
-
-  if (msg.includes("who are you")) {
-    return "I'm Shauri, here to help you understand your subjects clearly.";
-  }
-
-  if (msg.includes("do you know me")) {
-    return "I know you're my student here, and I'm here to help you learn better.";
-  }
-
-  if (msg.includes("can't you understand")) {
-    return "I understand. Ask me clearly once more — I’ll answer properly.";
-  }
-
-  return null;
-}
-
-/* ================= GEMINI ================= */
-
-async function callGemini(messages: ChatMessage[]) {
+async function callGemini(messages: ChatMessage[], temperature = 0.3) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   const res = await fetch(
@@ -98,7 +68,7 @@ async function callGemini(messages: ChatMessage[]) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: messages.map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
+          role: "user",
           parts: [{ text: m.content }],
         })),
       }),
@@ -106,7 +76,11 @@ async function callGemini(messages: ChatMessage[]) {
   );
 
   const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Error";
+
+  return (
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+    "Error generating response"
+  );
 }
 
 /* ================= API ================= */
@@ -114,50 +88,116 @@ async function callGemini(messages: ChatMessage[]) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const mode = body?.mode;
-    const message = (body?.message || "").trim();
+    const mode = body.mode;
+    const message = body.message || "";
 
-    const name = decodeURIComponent(req.cookies.get("shauri_name")?.value || "Student");
-    const cls = decodeURIComponent(req.cookies.get("shauri_class")?.value || "Class");
+    const student = body.student || {};
 
-    /* ================= EXAMINER (unchanged) ================= */
+    /* ================= EXAMINER MODE ================= */
 
     if (mode === "examiner") {
+
+      if (message.toLowerCase().includes("start")) {
+
+        const paper = await callGemini([
+          {
+            role: "system",
+            content: GLOBAL_CONTEXT,
+          },
+          {
+            role: "user",
+            content: `
+Generate a STRICT CBSE question paper.
+
+Class: ${student.class}
+Subject/Chapters: ${message}
+
+RULES:
+- Cover ALL chapters evenly
+- Section A: MCQ (10–15)
+- Section B: 2–3 marks
+- Section C: 4–5 marks
+- Section D: Case-based
+
+Difficulty:
+30% easy
+50% moderate
+20% hard
+
+Mention total marks and time.
+NO ANSWERS.
+`,
+          },
+        ]);
+
+        return NextResponse.json({ reply: paper });
+      }
+
+      if (message.toLowerCase().includes("submit")) {
+
+        const evaluation = await callGemini([
+          { role: "system", content: GLOBAL_CONTEXT },
+          { role: "system", content: EXAMINER_PROMPT },
+          {
+            role: "user",
+            content: `
+Evaluate strictly.
+
+Student Answers:
+${message}
+`,
+          },
+        ]);
+
+        return NextResponse.json({ reply: evaluation });
+      }
+
       return NextResponse.json({
-        reply: "Examiner mode working separately",
+        reply: "Type START to generate paper or SUBMIT to evaluate.",
       });
     }
 
-    /* ================= TEACHER ================= */
+    /* ================= TEACHER MODE ================= */
 
     if (mode === "teacher") {
-      // ✅ STEP 1: HANDLE DIRECT QUESTIONS (FIXES YOUR ISSUE)
-      const direct = handleDirectQuestions(message);
-      if (direct) {
-        return NextResponse.json({ reply: direct });
+
+      const msg = message.toLowerCase().trim();
+
+      // ✅ FIX: block unwanted teaching on greetings / vague input
+      if (
+        msg === "hi" ||
+        msg === "hello" ||
+        msg === "hey" ||
+        msg.length < 3
+      ) {
+        return NextResponse.json({
+          reply: "Which chapter or topic would you like to study?",
+        });
       }
 
-      // ✅ STEP 2: FORCE AI TO ANSWER QUESTION
       const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: TEACHER_PROMPT },
+
+        // ✅ Student context (unchanged fix)
         {
           role: "system",
-          content: `${GLOBAL_CONTEXT}\n${TEACHER_PROMPT}`,
-        },
-        {
-          role: "user",
           content: `
-User said: "${message}"
-
-You must reply ONLY to this.
+Student Name: ${student.name || ""}
+Class: ${student.class || ""}
+Board: ${student.board || "CBSE"}
 `,
         },
+
+        { role: "user", content: message },
       ]);
 
       return NextResponse.json({ reply });
     }
 
     return NextResponse.json({ reply: "Invalid mode" });
-  } catch {
-    return NextResponse.json({ reply: "Server error" }, { status: 500 });
+
+  } catch (e) {
+    return NextResponse.json({ reply: "Error occurred" });
   }
 }
