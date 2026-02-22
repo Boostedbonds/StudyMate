@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import ChatUI from "../components/ChatUI";
 import ChatInput from "../components/ChatInput";
 
@@ -14,22 +15,17 @@ export default function TeacherPage() {
     {
       role: "assistant",
       content:
-        "I’m here to help you learn clearly and confidently. What topic would you like to study today?",
+        "Hi there, we’ll go step by step. What would you like to study today?",
     },
   ]);
 
-  // 🔽 Scroll container ref (FIXED)
-  const chatContainerRef = useRef<HTMLDivElement | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // 🔁 Scroll to bottom whenever messages update (CLEAN FIX)
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-  }, [messages]);
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   async function handleSend(text: string, uploadedText?: string) {
     if (!text.trim() && !uploadedText) return;
@@ -38,7 +34,7 @@ export default function TeacherPage() {
 
     if (uploadedText) {
       userContent += `
-[UPLOADED STUDY MATERIAL / ANSWER SHEET]
+[UPLOADED STUDY MATERIAL]
 ${uploadedText}
 `;
     }
@@ -52,18 +48,15 @@ ${uploadedText}
       content: userContent.trim(),
     };
 
-    const updatedMessages: Message[] = [...messages, userMessage];
+    const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
+    setLoading(true);
 
     let student = null;
     try {
       const stored = localStorage.getItem("shauri_student");
-      if (stored) {
-        student = JSON.parse(stored);
-      }
-    } catch {
-      student = null;
-    }
+      if (stored) student = JSON.parse(stored);
+    } catch {}
 
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -72,7 +65,6 @@ ${uploadedText}
         mode: "teacher",
         messages: updatedMessages,
         student,
-        uploadedText: uploadedText ?? null,
       }),
     });
 
@@ -83,9 +75,10 @@ ${uploadedText}
       content:
         typeof data?.reply === "string"
           ? data.reply
-          : "Something went wrong. Please try again.",
+          : "Something went wrong.",
     };
 
+    setLoading(false);
     setMessages([...updatedMessages, aiMessage]);
   }
 
@@ -93,22 +86,21 @@ ${uploadedText}
     <div
       style={{
         minHeight: "100vh",
-        paddingTop: 24,
         display: "flex",
         flexDirection: "column",
+        background: "linear-gradient(to bottom, #f8fafc, #eef2f7)",
       }}
     >
-      {/* 🔙 Back to Mode Selector */}
-      <div style={{ paddingLeft: 24, marginBottom: 16 }}>
+      {/* 🔙 Back */}
+      <div style={{ padding: 24 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
           style={{
             padding: "10px 16px",
             background: "#2563eb",
-            color: "#ffffff",
+            color: "#fff",
             borderRadius: 12,
             border: "none",
-            fontSize: 14,
             cursor: "pointer",
           }}
         >
@@ -116,29 +108,54 @@ ${uploadedText}
         </button>
       </div>
 
-      <h1 style={{ textAlign: "center", marginBottom: 16 }}>
+      <h1 style={{ textAlign: "center", marginBottom: 20 }}>
         Teacher Mode
       </h1>
 
-      {/* 💬 Chat area */}
-      <div
-        ref={chatContainerRef}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          paddingBottom: 96,
-        }}
-      >
-        <ChatUI messages={messages} />
+      {/* 💬 Chat */}
+      <div style={{ flex: 1, padding: "0 16px 140px 16px" }}>
+        <AnimatePresence>
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ChatUI messages={[msg]} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {/* 🤖 Typing Indicator */}
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{
+              marginTop: 10,
+              fontSize: 13,
+              color: "#666",
+              paddingLeft: 10,
+            }}
+          >
+            Shauri is thinking...
+          </motion.div>
+        )}
+
+        <div ref={bottomRef} />
       </div>
 
-      {/* ⌨️ Input fixed at bottom */}
+      {/* ⌨️ Input (GLASS STYLE) */}
       <div
         style={{
-          position: "sticky",
+          position: "fixed",
           bottom: 0,
-          background: "#f8fafc",
-          paddingBottom: 16,
+          width: "100%",
+          backdropFilter: "blur(10px)",
+          background: "rgba(255,255,255,0.75)",
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          padding: "12px 16px",
         }}
       >
         <ChatInput onSend={handleSend} />
