@@ -23,14 +23,23 @@ Never go outside CBSE.
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
 
-Rules:
-- Speak like a real classroom teacher (warm, human, natural)
-- No robotic or repeated greetings
-- Use student's name naturally (not every line)
-- Keep answers short (2–4 lines)
-- Be clear, simple, and engaging
-- Stay strictly within NCERT/CBSE
-- If student goes off-topic → gently guide back
+STRICT RULES:
+- ALWAYS answer EXACTLY what the student asked
+- NEVER ignore the question
+- NEVER change topic
+- If student asks personal/basic question (like name), answer directly
+- No repeated greetings
+- No "let's start" type replies
+- Keep it short (2–4 lines)
+
+STYLE:
+- Human, natural classroom tone
+- Calm, helpful, to the point
+- Use name only where natural
+
+IMPORTANT:
+- Do NOT restart conversation
+- Do NOT behave like first message every time
 `;
 
 const EXAMINER_PROMPT = `
@@ -106,7 +115,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const mode = body?.mode;
-    const message = body?.message || "";
+    const message = (body?.message || "").trim();
     const lower = message.toLowerCase();
 
     const name = decodeURIComponent(req.cookies.get("shauri_name")?.value || "Student");
@@ -130,16 +139,12 @@ export async function POST(req: NextRequest) {
 
       /* CREATE SESSION */
       if (!session) {
-        const { data: newSession } = await supabase
-          .from("exam_sessions")
-          .insert({
-            student_name: name,
-            class: cls,
-            status: "idle",
-            answers: [],
-          })
-          .select()
-          .single();
+        await supabase.from("exam_sessions").insert({
+          student_name: name,
+          class: cls,
+          status: "idle",
+          answers: [],
+        });
 
         return NextResponse.json({
           reply: `Alright ${name}, which subject would you like to take a test in today?`,
@@ -163,7 +168,7 @@ export async function POST(req: NextRequest) {
           .eq("id", session.id);
 
         return NextResponse.json({
-          reply: `Got it — ${subject}. When you're ready, type START.`,
+          reply: `Got it — ${subject}. Type START when you're ready.`,
         });
       }
 
@@ -171,14 +176,15 @@ export async function POST(req: NextRequest) {
       if (session.status === "ready") {
         if (!/\b(start|begin)\b/.test(lower)) {
           return NextResponse.json({
-            reply: `Type START whenever you're ready to begin.`,
+            reply: `Type START to begin the exam.`,
           });
         }
 
         const paper = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          { role: "system", content: EXAMINER_PROMPT },
-          { role: "system", content: studentContext },
+          {
+            role: "system",
+            content: `${GLOBAL_CONTEXT}\n${EXAMINER_PROMPT}\n${studentContext}`,
+          },
           {
             role: "user",
             content: `Create a complete CBSE question paper for ${session.subject} for ${cls}.`,
@@ -219,7 +225,6 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ reply: "..." });
         }
 
-        /* FETCH FINAL ANSWERS */
         const { data: finalSession } = await supabase
           .from("exam_sessions")
           .select("*")
@@ -227,8 +232,10 @@ export async function POST(req: NextRequest) {
           .single();
 
         const result = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          { role: "system", content: EXAMINER_PROMPT },
+          {
+            role: "system",
+            content: `${GLOBAL_CONTEXT}\n${EXAMINER_PROMPT}`,
+          },
           {
             role: "user",
             content: `
@@ -256,10 +263,14 @@ ${(finalSession.answers || []).join("\n")}
 
     if (mode === "teacher") {
       const reply = await callGemini([
-        { role: "system", content: GLOBAL_CONTEXT },
-        { role: "system", content: TEACHER_PROMPT },
-        { role: "system", content: studentContext },
-        { role: "user", content: message },
+        {
+          role: "system",
+          content: `${GLOBAL_CONTEXT}\n${TEACHER_PROMPT}\n${studentContext}`,
+        },
+        {
+          role: "user",
+          content: `Student asked: ${message}`,
+        },
       ]);
 
       return NextResponse.json({ reply });
