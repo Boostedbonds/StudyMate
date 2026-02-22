@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "../../lib/supabase";
 
 /* ================= TYPES ================= */
 
@@ -14,279 +13,366 @@ type StudentContext = {
   board?: string;
 };
 
-/* ================= GLOBAL ================= */
+type ExamSession = {
+  status: "IDLE" | "READY" | "IN_EXAM";
+  subjectRequest?: string;
+  questionPaper?: string;
+  answers: string[];
+  startedAt?: number;
+};
+
+/* ================= GLOBAL CONTEXT ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri, strictly aligned to NCERT & CBSE.
-Never go outside syllabus.
-Never guess class.
+You are StudyMate, aligned strictly to:
+- NCERT textbooks
+- Official CBSE syllabus
+- CBSE board exam pattern
+
+Always adapt explanation strictly by student's class.
+Never go outside CBSE scope.
 `;
 
-/* ================= TEACHER ================= */
+/* ================= MODE PROMPTS ================= */
 
 const TEACHER_PROMPT = `
-You are a HUMAN CBSE teacher.
+You are in TEACHER MODE.
 
-BEHAVIOR:
-
-1. If student says "hi", "hello", "how are you":
-→ Respond naturally like:
-"Hi {name}! Ready to study?"
-
-2. DO NOT start teaching unless asked.
-
-3. If student chats casually:
-→ Reply briefly
-→ Then gently guide back:
-"Let's get back to studies — what topic?"
-
-4. Teaching:
-- Step by step
-- Simple language
-- Small explanation only
-- No long paragraphs
-
-5. Ask 2 short questions ONLY when teaching
-
-6. NEVER behave like:
-- notes generator
-- robot
-- example template
-`;
-
-/* ================= EXAMINER ================= */
-
-const EXAMINER_PROMPT = `
-You are a REAL CBSE examiner.
+ROLE:
+You are a real CBSE classroom teacher.
 
 RULES:
-
-1. DO NOT assume subject
-2. Wait for clear input like:
-   "Class 9 Science Chapter 1"
-
-3. Ignore messages like:
-   hi, hello, ok
-
-4. If unclear → ask:
-"Please specify subject and chapters."
-
-5. If student asks doubt:
-→ Answer it (do NOT reject)
-
-6. When subject given:
-→ Say: "Subject noted. Type START"
-
-7. On START:
-→ Generate FULL CBSE paper:
-- All chapters covered
-- Proper sections
-- 80 marks
-- Real difficulty
-
-8. On SUBMIT:
-→ Evaluate strictly
-→ Show:
-Marks Obtained: X/Y
-Percentage: Z%
-Detailed feedback
+- Student name and class are already known. Do NOT ask again.
+- Answer ONLY NCERT / CBSE syllabus related queries.
+- If student asks non-academic question, politely refuse.
+- Explain clearly according to student's class.
+- Structured CBSE-style explanation.
+- After proper explanation, ask exactly 2 short revision questions.
+- If student is correcting you, acknowledge and fix immediately.
 `;
+
+const ORAL_PROMPT = `
+You are in ORAL MODE.
+
+- Student name and class already known.
+- Keep answers short and conversational.
+- Strictly NCERT / CBSE aligned.
+- Do NOT ask for class again.
+`;
+
+const PROGRESS_PROMPT = `
+You are generating a concise CBSE-style academic performance summary.
+Maximum 6 lines.
+Professional tone.
+`;
+
+const EXAMINER_PROMPT = `
+You are in EXAMINER MODE.
+
+Return STRICT JSON ONLY:
+
+{
+  "marksObtained": number,
+  "totalMarks": number,
+  "percentage": number,
+  "detailedEvaluation": "Full explanation text"
+}
+
+No markdown.
+No commentary.
+Pure JSON only.
+`;
+
+/* ================= SESSION STORE ================= */
+
+const examSessions = new Map<string, ExamSession>();
+
+function getSessionKey(student?: StudentContext) {
+  if (!student?.name) return "anonymous";
+  return `${student.name}_${student.class ?? "unknown"}`;
+}
 
 /* ================= HELPERS ================= */
 
-function isGreeting(text: string) {
-  return ["hi", "hello", "hey"].includes(text);
+function looksLikeSubjectRequest(text: string) {
+  const keywords = [
+    "chapter",
+    "history",
+    "science",
+    "math",
+    "mathematics",
+    "geography",
+    "geo",
+    "civics",
+    "economics",
+    "eco",
+    "english",
+    "hindi",
+  ];
+  return keywords.some((k) => text.includes(k));
 }
 
-function isSubject(text: string) {
-  return (
-    text.includes("class") ||
-    text.includes("chapter") ||
-    text.includes("science") ||
-    text.includes("math") ||
-    text.includes("history")
-  );
+function calculateDurationMinutes(request: string): number {
+  const chapterMatches = request.match(/\b\d+\b/g);
+  const chapterCount = chapterMatches ? chapterMatches.length : 1;
+
+  if (chapterCount >= 4) return 150;
+  if (chapterCount === 3) return 120;
+  if (chapterCount === 2) return 90;
+  return 60;
 }
 
-/* ================= GEMINI ================= */
+function safeParseEvaluationJSON(text: string) {
+  try {
+    const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
 
-async function callGemini(messages: ChatMessage[]) {
+/* ================= GEMINI CALL ================= */
+
+async function callGemini(
+  messages: ChatMessage[],
+  temperature: number = 0.2
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return "AI error.";
+  if (!apiKey) return "AI configuration error.";
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: messages.map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }],
-        })),
-      }),
-    }
-  );
+  try {
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content ?? "" }],
+    }));
 
-  const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "Error.";
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          generationConfig: { temperature },
+        }),
+      }
+    );
+
+    const data = await res.json();
+
+    return (
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      "Unable to generate response."
+    );
+  } catch {
+    return "AI server error.";
+  }
 }
 
-/* ================= API ================= */
+/* ================= API HANDLER ================= */
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const mode = body?.mode ?? "";
 
-    /* ================= STUDENT ================= */
+    const mode: string = body?.mode ?? "";
+    const student: StudentContext | undefined = body?.student;
 
-    let student: StudentContext = body?.student || {};
+    const history: ChatMessage[] =
+      Array.isArray(body?.history)
+        ? body.history
+        : Array.isArray(body?.messages)
+        ? body.messages
+        : [];
 
-    if (!student.name || !student.class) {
-      const name = req.cookies.get("shauri_name")?.value;
-      const cls = req.cookies.get("shauri_class")?.value;
+    const message: string =
+      body?.message ??
+      history.filter((m) => m.role === "user").pop()?.content ??
+      "";
 
-      if (name && cls) {
-        student = {
-          name: decodeURIComponent(name),
-          class: decodeURIComponent(cls),
-          board: "CBSE",
-        };
-      }
-    }
-
-    const studentName = student?.name || "Student";
-    const studentClass = student?.class || "";
-
-    /* ================= MESSAGE ================= */
-
-    const history: ChatMessage[] = body?.history || [];
-    const message: string = body?.message || "";
     const lower = message.toLowerCase().trim();
 
-    /* ================= GET STUDENT ID ================= */
-
-    let studentId: string | null = null;
-
-    if (student.name && student.class) {
-      const { data } = await supabase
-        .from("students")
-        .select("id")
-        .eq("name", student.name)
-        .eq("class", student.class)
-        .maybeSingle();
-
-      if (data?.id) studentId = data.id;
-    }
-
-    /* ================= TEACHER MODE ================= */
-
-    if (mode === "teacher") {
-      // GREETING FIX
-      if (isGreeting(lower)) {
-        return NextResponse.json({
-          reply: `Hi ${studentName}! Ready to learn today?`,
-        });
-      }
-
-      // CASUAL CHAT FIX
-      if (!isSubject(lower)) {
-        return NextResponse.json({
-          reply: `Got it 👍 but let's focus — what subject or chapter do you want to study?`,
-        });
-      }
-
-      const reply = await callGemini([
-        { role: "system", content: GLOBAL_CONTEXT },
-        { role: "system", content: TEACHER_PROMPT },
-        {
-          role: "system",
-          content: `Student: ${studentName}, ${studentClass}`,
-        },
-        ...history,
-        { role: "user", content: message },
-      ]);
-
-      return NextResponse.json({ reply });
-    }
+    const fullConversation: ChatMessage[] = [
+      ...history,
+      { role: "user", content: message },
+    ];
 
     /* ================= EXAMINER MODE ================= */
 
     if (mode === "examiner") {
-      if (!studentId) {
-        return NextResponse.json({
-          reply: "Please login again.",
-        });
-      }
+      const key = getSessionKey(student);
+      const existing = examSessions.get(key);
+      const session: ExamSession =
+        existing ?? { status: "IDLE", answers: [] };
 
-      // IGNORE GREETING
-      if (isGreeting(lower)) {
-        return NextResponse.json({
-          reply: "Please tell subject and chapters.",
-        });
-      }
+      const greetingLine = `Hi ${student?.name ?? "Student"} of Class ${student?.class ?? "?"}. Please tell me the subject and chapters for your test.`;
 
-      // IF NORMAL QUESTION → ANSWER
-      if (!isSubject(lower) && lower !== "start") {
-        const reply = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          {
-            role: "system",
-            content: "Answer this doubt clearly (CBSE level)",
-          },
-          { role: "user", content: message },
-        ]);
+      const isSubmit = [
+        "submit",
+        "done",
+        "finished",
+        "finish",
+        "end test",
+      ].includes(lower);
 
-        return NextResponse.json({ reply });
-      }
+      /* ---- SUBMIT ---- */
 
-      // SUBJECT INPUT
-      if (isSubject(lower)) {
-        await supabase.from("exam_sessions").upsert({
-          student_id: studentId,
-          subject_request: message,
-          status: "AWAITING_START",
-        });
+      if (isSubmit && session.status === "IN_EXAM") {
+        let questionPaper = session.questionPaper ?? "";
+        let answers = session.answers ?? [];
 
-        return NextResponse.json({
-          reply: "Subject noted. Type START",
-        });
-      }
+        if (!questionPaper) {
+          questionPaper = fullConversation
+            .filter((m) => m.role === "assistant")
+            .map((m) => m.content ?? "")
+            .join("\n\n");
 
-      // START
-      if (lower === "start") {
-        const { data } = await supabase
-          .from("exam_sessions")
-          .select("*")
-          .eq("student_id", studentId)
-          .maybeSingle();
+          answers = fullConversation
+            .filter((m) => m.role === "user")
+            .map((m) => m.content ?? "")
+            .filter(
+              (m) =>
+                !["submit", "done", "finished", "finish", "end test"].includes(
+                  m.toLowerCase().trim()
+                )
+            );
+        }
 
-        if (!data?.subject_request) {
+        if (!questionPaper || answers.length === 0) {
           return NextResponse.json({
-            reply: "Please provide subject first.",
+            reply:
+              "Unable to locate question paper or answers. Please resend your answers.",
           });
         }
 
-        const paper = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          { role: "system", content: EXAMINER_PROMPT },
-          {
-            role: "user",
-            content: `Create full CBSE paper for ${data.subject_request}`,
-          },
-        ]);
+        const evaluationPrompt = `
+Evaluate this answer sheet.
+
+QUESTION PAPER:
+${questionPaper}
+
+STUDENT ANSWERS:
+${answers.join("\n\n")}
+`;
+
+        const resultText = await callGemini(
+          [
+            { role: "system", content: GLOBAL_CONTEXT },
+            { role: "system", content: EXAMINER_PROMPT },
+            { role: "user", content: evaluationPrompt },
+          ],
+          0.2
+        );
+
+        examSessions.delete(key);
+
+        return NextResponse.json({ reply: resultText });
+      }
+
+      /* ---- COLLECT ANSWERS SILENTLY ---- */
+
+      if (session.status === "IN_EXAM") {
+        session.answers.push(message);
+        examSessions.set(key, session);
+        return NextResponse.json({ reply: "" });
+      }
+
+      /* ---- SUBJECT DETECTED → WAIT FOR START ---- */
+
+      if (looksLikeSubjectRequest(lower) && session.status === "IDLE") {
+        examSessions.set(key, {
+          status: "READY",
+          subjectRequest: message,
+          answers: [],
+        });
+
+        return NextResponse.json({
+          reply:
+            "Subject noted. Type START to begin your exam.",
+        });
+      }
+
+      /* ---- START COMMAND ---- */
+
+      if (lower === "start" && session.status === "READY") {
+        const duration = calculateDurationMinutes(
+          session.subjectRequest ?? ""
+        );
+
+        const paper = await callGemini(
+          [
+            { role: "system", content: GLOBAL_CONTEXT },
+            {
+              role: "user",
+              content: `
+Generate a NEW CBSE question paper.
+
+Class: ${student?.class ?? ""}
+Topic: ${session.subjectRequest}
+Time Allowed: ${duration} minutes
+
+Follow CBSE board pattern strictly.
+Mention Total Marks.
+`,
+            },
+          ],
+          0.7
+        );
+
+        examSessions.set(key, {
+          status: "IN_EXAM",
+          subjectRequest: session.subjectRequest,
+          questionPaper: paper,
+          answers: [],
+          startedAt: Date.now(),
+        });
 
         return NextResponse.json({ reply: paper });
       }
 
-      return NextResponse.json({
-        reply: "Tell subject and chapters.",
-      });
+      return NextResponse.json({ reply: greetingLine });
+    }
+
+    /* ================= TEACHER ================= */
+
+    if (mode === "teacher") {
+      const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: TEACHER_PROMPT },
+        ...fullConversation,
+      ]);
+      return NextResponse.json({ reply });
+    }
+
+    /* ================= ORAL ================= */
+
+    if (mode === "oral") {
+      const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: ORAL_PROMPT },
+        ...fullConversation,
+      ]);
+      return NextResponse.json({ reply });
+    }
+
+    /* ================= PROGRESS ================= */
+
+    if (mode === "progress") {
+      const reply = await callGemini([
+        { role: "system", content: GLOBAL_CONTEXT },
+        { role: "system", content: PROGRESS_PROMPT },
+        ...fullConversation,
+      ]);
+      return NextResponse.json({ reply });
     }
 
     return NextResponse.json({ reply: "Invalid mode." });
-  } catch (err) {
-    return NextResponse.json({ reply: "Server error." });
+  } catch {
+    return NextResponse.json(
+      { reply: "AI server error. Please try again." },
+      { status: 500 }
+    );
   }
 }
