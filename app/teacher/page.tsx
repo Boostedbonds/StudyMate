@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import ChatUI from "../components/ChatUI";
 import ChatInput from "../components/ChatInput";
 
@@ -10,6 +10,7 @@ export type Message = {
 
 export default function TeacherPage() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const hasInteractedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -42,15 +43,22 @@ export default function TeacherPage() {
     }
   }, []);
 
+  // ✅ Scroll ONLY after user interaction (not on initial load)
   useEffect(() => {
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth",
-    });
+    if (!hasInteractedRef.current) return;
+
+    setTimeout(() => {
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 100);
   }, [messages.length]);
 
   async function handleSend(text: string, uploadedText?: string) {
     if (!text.trim() && !uploadedText) return;
+
+    hasInteractedRef.current = true;
 
     let userContent = "";
     if (uploadedText) {
@@ -76,10 +84,9 @@ export default function TeacherPage() {
       student = null;
     }
 
-    // ✅ strip greeting + strip last user message (route.ts adds it via message field)
     const historyToSend = updatedMessages
-      .slice(1)     // remove initial greeting
-      .slice(0, -1) // remove last user message
+      .slice(1)
+      .slice(0, -1)
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
@@ -88,7 +95,7 @@ export default function TeacherPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "teacher",
-          message: userContent.trim(), // ✅ send message separately
+          message: userContent.trim(),
           history: historyToSend,
           student,
           uploadedText: uploadedText ?? null,
@@ -118,7 +125,7 @@ export default function TeacherPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", paddingTop: 24, paddingBottom: 120 }}>
+    <div style={{ minHeight: "100vh", paddingTop: 24, paddingBottom: 140 }}>
       <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
@@ -136,10 +143,13 @@ export default function TeacherPage() {
         </button>
       </div>
 
-      <h1 style={{ textAlign: "center", marginBottom: 16 }}>Teacher Mode</h1>
+      <h1 style={{ textAlign: "center", marginBottom: 16 }}>
+        Teacher Mode
+      </h1>
 
       <ChatUI messages={messages} />
 
+      {/* ✅ Fixed input, page scroll stays clean */}
       <div
         style={{
           position: "fixed",
@@ -148,6 +158,7 @@ export default function TeacherPage() {
           width: "100%",
           background: "#f8fafc",
           padding: "12px 0",
+          borderTop: "1px solid #e2e8f0",
         }}
       >
         <ChatInput onSend={handleSend} />
