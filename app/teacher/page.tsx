@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 import ChatUI from "../components/ChatUI";
 import ChatInput from "../components/ChatInput";
 
@@ -11,21 +10,51 @@ export type Message = {
 };
 
 export default function TeacherPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi there, we’ll go step by step. What would you like to study today?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  const [loading, setLoading] = useState(false);
-
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-
+  // ✅ Dynamic Greeting (FIXED)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+    try {
+      const stored = localStorage.getItem("shauri_student");
+      if (stored) {
+        const student = JSON.parse(stored);
+
+        const name = student?.name || "Student";
+        const cls = student?.class || "";
+
+        setMessages([
+          {
+            role: "assistant",
+            content: `Hello ${name}! I'm Shauri, here to help you ace your ${cls} studies as per NCERT and CBSE. Let’s go step by step.`,
+          },
+        ]);
+      } else {
+        setMessages([
+          {
+            role: "assistant",
+            content:
+              "Hello! I'm Shauri. Let’s go step by step. What would you like to study?",
+          },
+        ]);
+      }
+    } catch {
+      setMessages([
+        {
+          role: "assistant",
+          content:
+            "Hello! I'm Shauri. Let’s go step by step. What would you like to study?",
+        },
+      ]);
+    }
+  }, []);
+
+  // ✅ Only scroll when NEW message comes (not typing)
+  useEffect(() => {
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages.length]);
 
   async function handleSend(text: string, uploadedText?: string) {
     if (!text.trim() && !uploadedText) return;
@@ -34,7 +63,7 @@ export default function TeacherPage() {
 
     if (uploadedText) {
       userContent += `
-[UPLOADED STUDY MATERIAL]
+[UPLOADED STUDY MATERIAL / ANSWER SHEET]
 ${uploadedText}
 `;
     }
@@ -48,15 +77,18 @@ ${uploadedText}
       content: userContent.trim(),
     };
 
-    const updatedMessages = [...messages, userMessage];
+    const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
-    setLoading(true);
 
     let student = null;
     try {
       const stored = localStorage.getItem("shauri_student");
-      if (stored) student = JSON.parse(stored);
-    } catch {}
+      if (stored) {
+        student = JSON.parse(stored);
+      }
+    } catch {
+      student = null;
+    }
 
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -65,6 +97,7 @@ ${uploadedText}
         mode: "teacher",
         messages: updatedMessages,
         student,
+        uploadedText: uploadedText ?? null,
       }),
     });
 
@@ -75,10 +108,9 @@ ${uploadedText}
       content:
         typeof data?.reply === "string"
           ? data.reply
-          : "Something went wrong.",
+          : "Something went wrong. Please try again.",
     };
 
-    setLoading(false);
     setMessages([...updatedMessages, aiMessage]);
   }
 
@@ -86,21 +118,21 @@ ${uploadedText}
     <div
       style={{
         minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        background: "linear-gradient(to bottom, #f8fafc, #eef2f7)",
+        paddingTop: 24,
+        paddingBottom: 120, // space for input
       }}
     >
       {/* 🔙 Back */}
-      <div style={{ padding: 24 }}>
+      <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
           style={{
             padding: "10px 16px",
             background: "#2563eb",
-            color: "#fff",
+            color: "#ffffff",
             borderRadius: 12,
             border: "none",
+            fontSize: 14,
             cursor: "pointer",
           }}
         >
@@ -108,54 +140,22 @@ ${uploadedText}
         </button>
       </div>
 
-      <h1 style={{ textAlign: "center", marginBottom: 20 }}>
+      <h1 style={{ textAlign: "center", marginBottom: 16 }}>
         Teacher Mode
       </h1>
 
-      {/* 💬 Chat */}
-      <div style={{ flex: 1, padding: "0 16px 140px 16px" }}>
-        <AnimatePresence>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ChatUI messages={[msg]} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      {/* ✅ NO INTERNAL SCROLL */}
+      <ChatUI messages={messages} />
 
-        {/* 🤖 Typing Indicator */}
-        {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{
-              marginTop: 10,
-              fontSize: 13,
-              color: "#666",
-              paddingLeft: 10,
-            }}
-          >
-            Shauri is thinking...
-          </motion.div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {/* ⌨️ Input (GLASS STYLE) */}
+      {/* ⌨️ Input */}
       <div
         style={{
           position: "fixed",
           bottom: 0,
+          left: 0,
           width: "100%",
-          backdropFilter: "blur(10px)",
-          background: "rgba(255,255,255,0.75)",
-          borderTop: "1px solid rgba(0,0,0,0.08)",
-          padding: "12px 16px",
+          background: "#f8fafc",
+          padding: "12px 0",
         }}
       >
         <ChatInput onSend={handleSend} />
