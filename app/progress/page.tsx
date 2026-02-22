@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header";
-import { supabase } from "../lib/supabase"; // ✅ added
+import { supabase } from "../lib/supabase";
 
 type ExamAttempt = {
   id: string;
@@ -32,12 +32,8 @@ function getTrend(scores: number[]) {
 }
 
 const SUBJECT_COLORS = [
-  "#2563eb",
-  "#0d9488",
-  "#7c3aed",
-  "#ea580c",
-  "#4f46e5",
-  "#059669",
+  "#2563eb", "#0d9488", "#7c3aed",
+  "#ea580c", "#4f46e5", "#059669",
 ];
 
 export default function ProgressPage() {
@@ -51,19 +47,30 @@ export default function ProgressPage() {
   }, []);
 
   async function fetchAttempts() {
-    const name = decodeURIComponent(
-      document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("shauri_name="))
-        ?.split("=")[1] || ""
-    );
+    // ✅ FIXED: read from localStorage, not cookies
+    let name = "";
+    let cls = "";
+    try {
+      const stored = localStorage.getItem("shauri_student");
+      if (stored) {
+        const student = JSON.parse(stored);
+        name = student?.name || "";
+        cls = student?.class || "";
+      }
+    } catch {}
 
-    const cls = decodeURIComponent(
-      document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("shauri_class="))
-        ?.split("=")[1] || ""
-    );
+    if (!name || !cls) {
+      // fallback to local exam attempts if no student context
+      try {
+        const local = localStorage.getItem("shauri_exam_attempts");
+        if (local) {
+          const parsed = JSON.parse(local);
+          setAttempts(parsed);
+          generateAISummary(parsed);
+        }
+      } catch {}
+      return;
+    }
 
     const { data, error } = await supabase
       .from("exam_attempts")
@@ -99,10 +106,7 @@ export default function ProgressPage() {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "progress",
-        attempts: data,
-      }),
+      body: JSON.stringify({ mode: "progress", attempts: data }),
     });
 
     const result = await res.json();
@@ -113,14 +117,12 @@ export default function ProgressPage() {
 
   const subjects = useMemo(() => {
     const map: Record<string, number[]> = {};
-
     attempts.forEach((a) => {
       if (typeof a.scorePercent === "number") {
         map[a.subject] ??= [];
         map[a.subject].push(a.scorePercent);
       }
     });
-
     return Object.entries(map).map(([subject, scores], index) => {
       const latest = scores[scores.length - 1];
       return {
@@ -146,30 +148,25 @@ export default function ProgressPage() {
     URL.revokeObjectURL(url);
   }
 
-  function generatePDF() {
-    const content = `
-Shauri Progress Report
+  // ✅ FIXED: proper plain text report instead of fake PDF
+  function generateReport() {
+    const content = [
+      "SHAURI PROGRESS REPORT",
+      "======================",
+      "",
+      ...subjects.map(
+        (s) =>
+          `Subject: ${s.subject}\nLatest Score: ${s.latest}%\nBand: ${s.band}\nTrend: ${s.trend}\n`
+      ),
+      "AI Academic Insight:",
+      aiSummary || "No AI summary available yet.",
+    ].join("\n");
 
-${subjects
-  .map(
-    (s) =>
-      `${s.subject}
-Latest Score: ${s.latest}%
-Performance Band: ${s.band}
-Trend: ${s.trend}
-`
-  )
-  .join("\n")}
-
-AI Academic Insight:
-${aiSummary || "No AI summary available yet."}
-`;
-
-    const blob = new Blob([content], { type: "application/pdf" });
+    const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "Shauri-progress-report.pdf";
+    a.download = "Shauri-progress-report.txt";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -177,10 +174,14 @@ ${aiSummary || "No AI summary available yet."}
   function handleImportFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
-      const parsed = JSON.parse(reader.result as string);
-      if (Array.isArray(parsed)) {
-        setAttempts(parsed);
-        generateAISummary(parsed);
+      try {
+        const parsed = JSON.parse(reader.result as string);
+        if (Array.isArray(parsed)) {
+          setAttempts(parsed);
+          generateAISummary(parsed);
+        }
+      } catch {
+        alert("Invalid file format.");
       }
     };
     reader.readAsText(file);
@@ -211,13 +212,10 @@ ${aiSummary || "No AI summary available yet."}
         <button onClick={() => (window.location.href = "/modes")}>
           ← Back
         </button>
-
         <div style={{ display: "flex", gap: 12 }}>
           <button onClick={exportProgress}>Export</button>
-          <button onClick={() => fileInputRef.current?.click()}>
-            Import
-          </button>
-          <button onClick={generatePDF}>PDF</button>
+          <button onClick={() => fileInputRef.current?.click()}>Import</button>
+          <button onClick={generateReport}>Download Report</button>
         </div>
       </div>
 
@@ -231,32 +229,72 @@ ${aiSummary || "No AI summary available yet."}
         }
       />
 
-      <main style={{ flex: 1, maxWidth: 1400, margin: "0 auto", padding: "24px 32px 64px", width: "100%" }}>
-        <h1 style={{ fontSize: 36, marginBottom: 24 }}>
-          Progress Dashboard
-        </h1>
+      <main
+        style={{
+          flex: 1,
+          maxWidth: 1400,
+          margin: "0 auto",
+          padding: "24px 32px 64px",
+          width: "100%",
+        }}
+      >
+        <h1 style={{ fontSize: 36, marginBottom: 24 }}>Progress Dashboard</h1>
 
         {subjects.length === 0 ? (
-          <p>No exam data available yet.</p>
+          <p>No exam data available yet. Complete an exam in Examiner Mode first.</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 40 }}>
-            <div style={{ background: "#fff", borderRadius: 24, padding: 32, display: "flex", alignItems: "flex-end", gap: 30, height: 320 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: 40,
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 24,
+                padding: 32,
+                display: "flex",
+                alignItems: "flex-end",
+                gap: 30,
+                height: 320,
+              }}
+            >
               {subjects.map((s) => {
                 const barHeight = Math.max((s.latest / 100) * 260, 8);
-
                 return (
-                  <div key={s.subject} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-                    <div style={{ height: barHeight, width: 40, background: s.color, borderRadius: 8 }} />
-                    <div style={{ marginTop: 10 }}>{s.subject}</div>
-                    <div>{s.latest}%</div>
+                  <div
+                    key={s.subject}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      flex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: barHeight,
+                        width: 40,
+                        background: s.color,
+                        borderRadius: 8,
+                      }}
+                    />
+                    <div style={{ marginTop: 10, fontSize: 13 }}>{s.subject}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.latest}%</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{s.band}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{s.trend}</div>
                   </div>
                 );
               })}
             </div>
 
             <div style={{ background: "#fff", borderRadius: 24, padding: 28 }}>
-              <h2>Academic Analysis</h2>
-              <p>{aiSummary || "Analysis will appear after tests are evaluated."}</p>
+              <h2>AI Academic Analysis</h2>
+              <p style={{ lineHeight: 1.7, color: "#334155" }}>
+                {aiSummary || "Analysis will appear after tests are evaluated."}
+              </p>
             </div>
           </div>
         )}

@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import ChatUI from "../components/ChatUI";
 import ChatInput from "../components/ChatInput";
@@ -14,14 +13,12 @@ export default function OralPage() {
     {
       role: "assistant",
       content:
-        "Hello, I’m Shauri, your learning partner.\n\nLet’s discuss what you want to learn today — a topic explanation, dictation test, or spelling practice?",
+        "Hello, I'm Shauri, your learning partner.\n\nLet's discuss what you want to learn today — a topic explanation, dictation test, or spelling practice?",
     },
   ]);
 
-  // 🔽 Auto-scroll anchor
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // 🔁 Scroll to bottom on message update
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -30,14 +27,9 @@ export default function OralPage() {
     if (!text.trim() && !uploadedText) return;
 
     let userContent = "";
-
     if (uploadedText) {
-      userContent += `
-[UPLOADED STUDY MATERIAL / ANSWER SHEET]
-${uploadedText}
-`;
+      userContent += `\n[UPLOADED STUDY MATERIAL / ANSWER SHEET]\n${uploadedText}\n`;
     }
-
     if (text.trim()) {
       userContent += text.trim();
     }
@@ -50,24 +42,28 @@ ${uploadedText}
     const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
 
-    // 🔹 Read student context
     let student = null;
     try {
       const stored = localStorage.getItem("shauri_student");
-      if (stored) {
-        student = JSON.parse(stored);
-      }
+      if (stored) student = JSON.parse(stored);
     } catch {
       student = null;
     }
+
+    // ✅ FIXED: same pattern as teacher + examiner
+    const historyToSend = updatedMessages
+      .slice(1)     // remove initial greeting
+      .slice(0, -1) // remove last user message (sent separately)
+      .map((m) => ({ role: m.role, content: m.content }));
 
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: "oral",
-        messages: updatedMessages,
-        student, // ✅ PASS STUDENT CONTEXT
+        message: userContent.trim(), // ✅ FIXED
+        history: historyToSend,      // ✅ FIXED
+        student,
         uploadedText: uploadedText ?? null,
       }),
     });
@@ -94,7 +90,6 @@ ${uploadedText}
         flexDirection: "column",
       }}
     >
-      {/* 🔙 Back */}
       <div style={{ paddingLeft: 24, marginBottom: 16 }}>
         <button
           onClick={() => (window.location.href = "/modes")}
@@ -112,23 +107,13 @@ ${uploadedText}
         </button>
       </div>
 
-      <h1 style={{ textAlign: "center", marginBottom: 16 }}>
-        Oral Mode
-      </h1>
+      <h1 style={{ textAlign: "center", marginBottom: 16 }}>Oral Mode</h1>
 
-      {/* 💬 Chat area */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          paddingBottom: 96,
-        }}
-      >
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 96 }}>
         <ChatUI messages={messages} isOralMode />
         <div ref={bottomRef} />
       </div>
 
-      {/* ⌨️ Input */}
       <div
         style={{
           position: "sticky",
