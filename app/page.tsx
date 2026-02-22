@@ -1,168 +1,260 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Orbitron } from "next/font/google";
 
-export default function Page() {
+const orbitron = Orbitron({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+});
+
+const ACCESS_CODE = "0330";
+
+export default function HomePage() {
   const [entered, setEntered] = useState(false);
+  const [warp, setWarp] = useState(false);
+
+  const [name, setName] = useState("");
+  const [studentClass, setStudentClass] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+
+  function handleEnter() {
+    setWarp(true);
+    setTimeout(() => setEntered(true), 900);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!name.trim()) return setError("Please enter student name");
+    if (!studentClass) return setError("Please select class");
+    if (code !== ACCESS_CODE) return setError("Invalid access code");
+
+    const studentContext = {
+      name: name.trim(),
+      class: studentClass,
+      board: "CBSE",
+    };
+
+    localStorage.setItem("shauri_student", JSON.stringify(studentContext));
+    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/`;
+    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/`;
+
+    window.location.href = "/modes";
+  }
 
   return (
-    <div style={{ minHeight: "100vh", fontFamily: "sans-serif" }}>
-      {!entered ? <Landing onEnter={() => setEntered(true)} /> : <Access />}
-    </div>
-  );
-}
+    <div className={orbitron.className} style={{ minHeight: "100vh" }}>
 
-/* ================= LANDING ================= */
+      {/* LANDING */}
+      <AnimatePresence>
+        {!entered && (
+          <motion.div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "linear-gradient(to top, #000814, #001d3d, #0a2540)",
+              overflow: "hidden",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
 
-function Landing({ onEnter }: { onEnter: () => void }) {
-  return (
-    <div
-      style={{
-        height: "100vh",
-        background: "#0b2a4a",
-        position: "relative",
-        overflow: "hidden",
-        color: "white",
-        textAlign: "center",
-      }}
-    >
-      {/* SUN */}
-      <div
-        style={{
-          position: "absolute",
-          top: "10%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 400,
-          height: 400,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, #e6c27a, #caa24f, transparent)",
-          filter: "blur(20px)",
-        }}
-      />
+            {/* SUN */}
+            <div
+              style={{
+                position: "absolute",
+                top: "22%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "520px",
+                height: "520px",
+                borderRadius: "50%",
+                background:
+                  "radial-gradient(circle, rgba(255,215,120,1) 0%, rgba(255,180,60,0.6) 50%, transparent 80%)",
+                filter: "blur(12px)",
+              }}
+            />
 
-      {/* TITLE */}
-      <h1
-        style={{
-          marginTop: 120,
-          fontSize: "64px",
-          letterSpacing: "18px",
-          color: "#FFD700",
-          textShadow: "0 0 20px rgba(255,215,0,0.8)",
-        }}
-      >
-        SHAURI
-      </h1>
+            {/* TITLE */}
+            <div style={{ position: "absolute", top: "22%", width: "100%", textAlign: "center" }}>
+              <h1
+                style={{
+                  fontSize: "76px",
+                  letterSpacing: "0.55em",
+                  fontWeight: 700,
+                  color: "#FFD700",
+                  textShadow:
+                    "0 0 20px rgba(255,215,120,0.9), 0 0 40px rgba(255,200,80,0.6), 0 2px 6px rgba(0,0,0,0.8)",
+                }}
+              >
+                SHAURI
+              </h1>
 
-      <p style={{ opacity: 0.8 }}>
-        THE COURAGE TO MASTER THE FUTURE
-      </p>
-      <p style={{ color: "#FFD700" }}>
-        CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
-      </p>
+              <p style={{ marginTop: 12, color: "#ffffff", letterSpacing: "0.15em" }}>
+                THE COURAGE TO MASTER THE FUTURE
+              </p>
 
-      {/* MOUNTAIN */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          width: "100%",
-          height: "40%",
-          background: "black",
-          clipPath: "polygon(0% 100%, 50% 40%, 100% 100%)",
-          zIndex: 1,
-        }}
-      />
+              <p
+                style={{
+                  color: "#FFD700",
+                  fontSize: "13px",
+                  letterSpacing: "0.15em",
+                  marginTop: 6,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
+              </p>
+            </div>
 
-      {/* CTA */}
-      <button
-        onClick={onEnter}
-        style={{
-          position: "absolute",
-          bottom: "26%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          padding: "14px 40px",
-          borderRadius: "30px",
-          border: "1px solid #FFD700",
-          color: "#FFD700",
-          background: "transparent",
-          fontSize: "14px",
-          letterSpacing: "4px",
-          cursor: "pointer",
-          zIndex: 3,
-          boxShadow: "0 0 15px rgba(255,215,0,0.6)",
-        }}
-      >
-        BEGIN THE ASCENT
-      </button>
-    </div>
-  );
-}
+            {/* MOUNTAIN */}
+            <svg viewBox="0 0 1440 800" style={{ position: "absolute", bottom: 0 }}>
+              <path
+                d="M0,730 C400,650 700,600 720,500 C740,600 1000,650 1440,720 L1440,800 L0,800 Z"
+                fill="black"
+              />
+            </svg>
 
-/* ================= ACCESS ================= */
+            {/* CTA */}
+            <motion.div
+              onClick={handleEnter}
+              style={{
+                position: "absolute",
+                bottom: "220px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                cursor: "pointer",
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <div
+                style={{
+                  position: "relative",
+                  padding: "14px 42px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,215,0,0.5)",
+                  overflow: "hidden",
+                  color: "#FFD700",
+                  letterSpacing: "0.35em",
+                }}
+              >
+                {/* running gold light */}
+                <motion.div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: "-100%",
+                    width: "100%",
+                    height: "100%",
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(255,215,0,0.6), transparent)",
+                  }}
+                  animate={{ left: ["-100%", "100%"] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
 
-function Access() {
-  return (
-    <div
-      style={{
-        height: "100vh",
-        background: "#e8d3a8",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <h1
-        style={{
-          fontSize: "40px",
-          letterSpacing: "10px",
-          marginBottom: "20px",
-          color: "#0b2a4a",
-        }}
-      >
-        SHAURI
-      </h1>
+                BEGIN THE ASCENT
+              </div>
+            </motion.div>
 
-      <p style={{ marginBottom: "30px", opacity: 0.7 }}>
-        CBSE-Aligned. Adaptive. Built for your growth.
-      </p>
+            {warp && (
+              <motion.div
+                style={{ position: "absolute", inset: 0, background: "white" }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div style={{ width: "280px", display: "flex", flexDirection: "column", gap: "14px" }}>
-        <input placeholder="Student Name" style={inputStyle} />
-        <select style={inputStyle}>
-          <option>Select Class</option>
-        </select>
-        <input placeholder="Access Code" style={inputStyle} />
-
-        <button
+      {/* ACCESS PAGE */}
+      {entered && (
+        <div
           style={{
-            marginTop: "10px",
-            padding: "12px",
-            borderRadius: "25px",
-            border: "none",
-            background: "#d4af37",
-            color: "black",
-            letterSpacing: "2px",
-            cursor: "pointer",
+            minHeight: "100vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            flexDirection: "column",
+            background: "linear-gradient(to bottom, #e6d3a3, #d6c08d)",
           }}
         >
-          INITIATE ASCENT
-        </button>
-      </div>
+          <h1
+            style={{
+              fontSize: "48px",
+              letterSpacing: "0.4em",
+              fontWeight: 700,
+              color: "#0f172a",
+              textShadow: "0 2px 4px rgba(0,0,0,0.15)",
+            }}
+          >
+            SHAURI
+          </h1>
 
-      <p style={{ marginTop: "40px", opacity: 0.6 }}>
-        Discipline today builds the confidence of tomorrow.
-      </p>
+          <p style={{ marginTop: 10, marginBottom: 30, opacity: 0.7 }}>
+            CBSE-Aligned. Adaptive. Built for your growth.
+          </p>
+
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Student Name"
+              style={inputStyle}
+            />
+
+            <select
+              value={studentClass}
+              onChange={(e) => setStudentClass(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">Select Class</option>
+              {[6, 7, 8, 9, 10, 11, 12].map((c) => (
+                <option key={c}>Class {c}</option>
+              ))}
+            </select>
+
+            <input
+              type="password"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Access Code"
+              style={inputStyle}
+            />
+
+            <button style={buttonStyle}>STEP IN</button>
+          </form>
+
+          <p style={{ marginTop: 40, opacity: 0.6 }}>
+            Discipline today builds the confidence of tomorrow.
+          </p>
+
+          {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ================= STYLES ================= */
-
 const inputStyle = {
-  padding: "10px",
-  borderRadius: "8px",
-  border: "1px solid #ccc",
+  padding: "12px",
+  borderRadius: "12px",
+  border: "1px solid #d4af37",
+  width: "260px",
+  background: "#f8fafc",
+};
+
+const buttonStyle = {
+  padding: "12px",
+  borderRadius: "999px",
+  border: "1px solid #d4af37",
+  background: "transparent",
+  cursor: "pointer",
 };
