@@ -22,20 +22,47 @@ Never go outside CBSE.
 
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
-- Max 2 lines
-- Warm tone
-- Use name + class
-- No examples
+
+Rules:
+- Greet using student name and class (only once at start)
+- Keep answers SHORT (2–4 lines max)
+- Be warm, human, and conversational (not robotic)
+- Stick strictly to NCERT/CBSE
+- No unnecessary long paragraphs
+
+Behavior:
+- If student asks casual → respond naturally but guide back to study
+- If academic → explain clearly and simply
 `;
 
 const EXAMINER_PROMPT = `
 You are a STRICT CBSE BOARD EXAMINER.
 
-Generate FULL paper in ONE response.
+=====================
+PAPER GENERATION
+=====================
+- Generate FULL paper in ONE response
+- Include sections (A, B, C)
+- Include marks + time
+- CBSE pattern strictly
 
-Then evaluate strictly.
+=====================
+EVALUATION
+=====================
+- Strict checking only
+- No assumptions
+- Marks only for correct points
 
-Return ONLY JSON for evaluation.
+=====================
+OUTPUT (EVALUATION)
+=====================
+Return ONLY JSON:
+{
+  "marksObtained": number,
+  "totalMarks": number,
+  "percentage": number,
+  "detailedEvaluation": "..."
+}
 `;
 
 /* ================= HELPERS ================= */
@@ -107,15 +134,17 @@ Class: ${cls}
     /* ================= EXAMINER ================= */
 
     if (mode === "examiner") {
-      let { data: session } = await supabase
+      // ✅ FIX: NO .single()
+      const { data } = await supabase
         .from("exam_sessions")
         .select("*")
         .eq("student_name", name)
         .eq("class", cls)
         .neq("status", "completed")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
+
+      let session = data && data.length > 0 ? data[0] : null;
 
       /* CREATE SESSION */
       if (!session) {
@@ -150,6 +179,11 @@ Class: ${cls}
             status: "ready",
           })
           .eq("id", session.id);
+
+        // ✅ CRITICAL FIX
+        session.subject = subject;
+        session.chapters = chapters;
+        session.status = "ready";
 
         return NextResponse.json({
           reply: `Subject noted: ${subject}. Type START to begin.`,
@@ -194,7 +228,6 @@ Class: ${cls}
         const isSubmit = /\b(submit|done|finish)\b/.test(lower);
 
         if (!isSubmit) {
-          // ✅ FIX: always fetch latest answers
           const { data: latest } = await supabase
             .from("exam_sessions")
             .select("answers")
@@ -256,6 +289,7 @@ ${(session.answers || []).join("\n")}
 
     return NextResponse.json({ reply: "Invalid mode" });
   } catch (e) {
+    console.error(e);
     return NextResponse.json({ reply: "Server error" }, { status: 500 });
   }
 }
