@@ -146,7 +146,7 @@ export default function HomePage() {
               onClick={handleEnter}
               style={{
                 position: "absolute",
-                bottom: "200, // 🔥 fixed spacing above peak
+                bottom: "200px",
                 left: "50%",
                 transform: "translateX(-50%)",
                 letterSpacing: "0.35em",
