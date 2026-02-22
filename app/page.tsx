@@ -31,7 +31,7 @@ export default function HomePage() {
 
   function handleEnter() {
     setWarp(true);
-    setTimeout(() => setEntered(true), 800);
+    setTimeout(() => setEntered(true), 900);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -50,13 +50,16 @@ export default function HomePage() {
 
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
 
+    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/; SameSite=Lax`;
+    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/; SameSite=Lax`;
+
     window.location.href = "/modes";
   }
 
   return (
     <div className={orbitron.className} style={{ minHeight: "100vh" }}>
-
-      {/* ================= LANDING ================= */}
+      
+      {/* HERO */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -71,84 +74,111 @@ export default function HomePage() {
             exit={{ opacity: 0 }}
           >
 
-            {/* SUN (reduced blur for sharp glow) */}
+            {/* SUN */}
             <div
               style={{
                 position: "absolute",
-                top: "28%",
+                top: "22%",
                 left: "50%",
                 transform: "translate(-50%, -50%)",
-                width: "420px",
-                height: "420px",
+                width: "520px",
+                height: "520px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle, rgba(255,215,120,0.95) 0%, rgba(255,180,60,0.5) 45%, transparent 75%)",
-                filter: "blur(4px)", // 🔥 FIXED (was 10px)
+                  "radial-gradient(circle, rgba(255,215,120,0.95) 0%, rgba(255,160,40,0.6) 40%, rgba(255,160,40,0.2) 65%, transparent 80%)",
+                filter: "blur(6px)", // reduced blur for sharper glow
               }}
             />
 
             {/* TITLE */}
-            <div style={{ position: "absolute", top: "26%", width: "100%", textAlign: "center", zIndex: 5 }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "22%",
+                width: "100%",
+                textAlign: "center",
+                zIndex: 5,
+              }}
+            >
               <h1
                 style={{
                   fontSize: "72px",
-                  letterSpacing: "0.5em",
+                  letterSpacing: "0.45em",
                   fontWeight: 700,
                   color: "#FFD700",
                   textShadow:
-                    "0 0 6px rgba(255,215,120,0.9), 0 0 20px rgba(255,200,80,0.6), 0 0 40px rgba(255,180,60,0.4)",
+                    "0 0 8px rgba(255,215,120,0.8), 0 0 20px rgba(255,200,80,0.6), 0 0 40px rgba(255,180,50,0.4)",
                 }}
               >
                 SHAURI
               </h1>
 
-              <p style={{ marginTop: 10, color: "#ffffffcc" }}>
+              <p style={{ marginTop: 10, color: "#ffffff", letterSpacing: "0.1em" }}>
                 THE COURAGE TO MASTER THE FUTURE
               </p>
 
-              <p style={{ color: "#FFD700", fontSize: "14px" }}>
+              <p
+                style={{
+                  color: "#FFD700",
+                  fontSize: "13px",
+                  letterSpacing: "0.15em",
+                  marginTop: 6,
+                  whiteSpace: "nowrap",
+                }}
+              >
                 CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
               </p>
             </div>
 
             {/* MOUNTAIN */}
-            <svg viewBox="0 0 1440 800" style={{ position: "absolute", bottom: 0 }}>
+            <svg
+              viewBox="0 0 1440 800"
+              style={{ position: "absolute", bottom: 0 }}
+            >
               <path
                 d="M0,730 C400,650 700,600 720,500 C740,600 1000,650 1440,720 L1440,800 L0,800 Z"
                 fill="black"
               />
             </svg>
 
-            {/* CTA (FIXED POSITION ABOVE PEAK) */}
+            {/* CTA */}
             <motion.div
               onClick={handleEnter}
               style={{
                 position: "absolute",
-                bottom: "38%", // 🔥 moved above peak
+                bottom: "200, // 🔥 fixed spacing above peak
                 left: "50%",
                 transform: "translateX(-50%)",
-                letterSpacing: "0.4em",
+                letterSpacing: "0.35em",
                 color: "#FFD700",
                 cursor: "pointer",
                 textAlign: "center",
               }}
-              animate={{ opacity: [0.6, 1, 0.6] }}
+              animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              BEGIN THE ASCENT
-              <div style={{ fontSize: "12px", marginTop: 8, opacity: 0.8 }}>
+              <div style={{ fontSize: "16px" }}>
+                BEGIN THE ASCENT
+              </div>
+
+              <div
+                style={{
+                  fontSize: "12px",
+                  marginTop: 10,
+                  opacity: 0.8,
+                }}
+              >
                 {getDynamicLine()}
               </div>
             </motion.div>
 
-            {/* SUNRISE TRANSITION (NOT WHITE FLASH) */}
+            {/* TRANSITION FLASH */}
             {warp && (
               <motion.div
                 style={{
                   position: "absolute",
                   inset: 0,
-                  background:
-                    "linear-gradient(to bottom, #f5e6c8, #e6d3a3, #d9c48c)",
+                  background: "white",
                 }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -158,24 +188,24 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ================= ACCESS PAGE ================= */}
+      {/* ACCESS PAGE */}
       {entered && (
         <div
           style={{
             minHeight: "100vh",
             display: "flex",
-            flexDirection: "column",
             justifyContent: "center",
             alignItems: "center",
-            background: "linear-gradient(to bottom, #f5e6c8, #e6d3a3)",
+            flexDirection: "column",
+            background: "linear-gradient(to bottom, #f5e6c4, #e8d3a3)",
           }}
         >
-          <h1 style={{ marginBottom: 24, letterSpacing: "0.3em" }}>
-            SHAURI
-          </h1>
+          <h1 style={{ marginBottom: 24 }}>SHAURI</h1>
 
-          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 18, width: "320px" }}>
-
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: "grid", gap: 16, width: 260 }}
+          >
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -189,7 +219,7 @@ export default function HomePage() {
               style={inputStyle}
             >
               <option value="">Select Class</option>
-              {[6,7,8,9,10,11,12].map(c => (
+              {[6, 7, 8, 9, 10, 11, 12].map((c) => (
                 <option key={c}>Class {c}</option>
               ))}
             </select>
@@ -202,22 +232,14 @@ export default function HomePage() {
               style={inputStyle}
             />
 
-            {error && (
-              <div style={{ color: "red", fontSize: 13 }}>{error}</div>
-            )}
-
             <button style={buttonStyle}>STEP IN</button>
+
+            {error && (
+              <div style={{ color: "red", fontSize: 12 }}>{error}</div>
+            )}
           </form>
 
-          {/* MOTIVATIONAL QUOTE */}
-          <p
-            style={{
-              position: "absolute",
-              bottom: 40,
-              fontSize: 14,
-              opacity: 0.7,
-            }}
-          >
+          <p style={{ marginTop: 40, fontSize: 13, opacity: 0.7 }}>
             Discipline today builds the confidence of tomorrow.
           </p>
         </div>
@@ -227,18 +249,16 @@ export default function HomePage() {
 }
 
 const inputStyle = {
-  padding: "14px",
-  borderRadius: "14px",
+  padding: "12px",
+  borderRadius: "10px",
   border: "1px solid #d4af37",
-  background: "#ffffffcc",
-  fontSize: "14px",
+  background: "#fff",
 };
 
 const buttonStyle = {
-  padding: "14px",
+  padding: "12px",
   borderRadius: "999px",
-  border: "1px solid #d4af37",
-  background: "#e6d3a3",
-  fontWeight: 600,
+  border: "1px solid #D4AF37",
+  background: "transparent",
   cursor: "pointer",
 };
