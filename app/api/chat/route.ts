@@ -19,73 +19,65 @@ type StudentContext = {
 const GLOBAL_CONTEXT = `
 You are Shauri, strictly aligned to:
 - NCERT textbooks
-- Official CBSE syllabus
-- CBSE board exam pattern
-Never go outside CBSE scope.
-Never guess the class.
+- CBSE syllabus
+- CBSE board pattern
+Never go outside syllabus.
+Never assume subject.
 `;
 
-/* ================= TEACHER PROMPT (MENTOR + ADAPTIVE + HUMAN) ================= */
+/* ================= TEACHER PROMPT ================= */
 
 const TEACHER_PROMPT = `
-You are in TEACHER MODE.
+You are a real class teacher + mentor.
 
-You are a real Class Teacher + Mentor.
+RULES:
 
-=====================
-CORE BEHAVIOR
-=====================
+1. If greeting → reply briefly, ask what to study
+2. If doubt → explain step-by-step
+3. If casual talk → respond + gently bring back to study
 
-1. If student asks ANY academic question → answer immediately.
+NEVER:
+- Assume subject
+- Start teaching without being asked
+- Give long notes
 
-2. If student sends casual messages:
-- respond like a human teacher
-- keep it short
-- gently bring them back to studies
+STYLE:
+- Simple
+- Short
+- Human tone
 
-Example:
-"Of course 😊 you're my student. Now tell me, what would you like to study?"
+SCORING MODE:
+- Use keywords
+- Point-wise answers
 
-3. Never force topic.
-4. Never ignore student message.
-5. Never repeat same question again.
-
-=====================
-TEACHING STYLE
-=====================
-
-- Step-by-step
-- Simple language
-- Short explanations
-- Use examples
-- Use NCERT keywords naturally
-
-=====================
-SCORING MODE
-=====================
-
-If question is exam-type:
-- Use point-wise answers
-- Include keywords
-- Follow marks structure
-
-=====================
-ENGAGEMENT
-=====================
-
-Ask exactly 2 short questions after explanation.
-
-=====================
-TONE
-=====================
-
-- Human
-- Supportive
-- Calm
-- Never robotic
+Ask 2 short questions ONLY after teaching.
 `;
 
-/* ================= HELPERS ================= */
+/* ================= EXAMINER PROMPT ================= */
+
+const EXAMINER_PROMPT = `
+You are a strict CBSE examiner.
+
+PAPER:
+- Full syllabus coverage
+- Balanced difficulty
+- Sections (MCQ, short, long)
+
+EVALUATION:
+- Strict NCERT checking
+- No guessing
+- No free marks
+
+Return JSON:
+{
+ "marksObtained": number,
+ "totalMarks": number,
+ "percentage": number,
+ "detailedEvaluation": "strict checking"
+}
+`;
+
+/* ================= MEMORY ================= */
 
 async function updateWeakness(studentId: string, topic: string) {
   if (!topic) return;
@@ -102,7 +94,6 @@ async function updateWeakness(studentId: string, topic: string) {
       .from("student_memory")
       .update({
         weakness_level: Math.min((data.weakness_level ?? 1) + 1, 5),
-        updated_at: new Date(),
       })
       .eq("id", data.id);
   } else {
@@ -117,9 +108,8 @@ async function updateWeakness(studentId: string, topic: string) {
 async function getWeakTopics(studentId: string) {
   const { data } = await supabase
     .from("student_memory")
-    .select("topic, weakness_level")
+    .select("topic")
     .eq("student_id", studentId)
-    .order("weakness_level", { ascending: false })
     .limit(3);
 
   return data || [];
@@ -129,7 +119,7 @@ async function getWeakTopics(studentId: string) {
 
 async function callGemini(messages: ChatMessage[], temperature = 0.3) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return "AI configuration error.";
+  if (!apiKey) return "API key missing";
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -154,71 +144,41 @@ async function callGemini(messages: ChatMessage[], temperature = 0.3) {
   );
 }
 
+/* ================= JSON PARSER ================= */
+
+function parseJSON(text: string) {
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /* ================= API ================= */
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const mode: string = body?.mode ?? "";
+    const mode = body?.mode ?? "";
 
-    let student: StudentContext | undefined = body?.student;
+    let student: StudentContext = body?.student;
 
     if (!student?.name || !student?.class) {
-      const nameFromCookie = req.cookies.get("shauri_name")?.value;
-      const classFromCookie = req.cookies.get("shauri_class")?.value;
+      const name = req.cookies.get("shauri_name")?.value;
+      const cls = req.cookies.get("shauri_class")?.value;
 
-      if (nameFromCookie && classFromCookie) {
+      if (name && cls) {
         student = {
-          name: decodeURIComponent(nameFromCookie),
-          class: decodeURIComponent(classFromCookie),
+          name: decodeURIComponent(name),
+          class: decodeURIComponent(cls),
           board: "CBSE",
         };
       }
     }
 
-    const history: ChatMessage[] =
-      Array.isArray(body?.history)
-        ? body.history
-        : Array.isArray(body?.messages)
-        ? body.messages
-        : [];
-
-    const message: string =
-      body?.message ??
-      history.filter((m) => m.role === "user").pop()?.content ??
-      "";
-
+    const message = body?.message ?? "";
     const lower = message.toLowerCase();
-
-    /* ================= FLAGS ================= */
-
-    const isConfused =
-      lower.includes("don't understand") ||
-      lower.includes("confused") ||
-      lower.includes("not clear");
-
-    const isExamMode =
-      lower.includes("answer") ||
-      lower.includes("write") ||
-      lower.includes("3 marks") ||
-      lower.includes("5 marks") ||
-      lower.includes("2 marks");
-
-    const isStrict =
-      lower.includes("strict") || lower.includes("examiner style");
-
-    /* ================= CONTEXT ================= */
-
-    const studentContext = `
-Student Name: ${student?.name ?? "Student"}
-Class: ${student?.class ?? ""}
-Board: CBSE
-`;
-
-    const fullConversation: ChatMessage[] = [
-      ...history,
-      { role: "user", content: message },
-    ];
 
     let studentId: string | null = null;
 
@@ -233,68 +193,117 @@ Board: CBSE
       if (data) studentId = data.id;
     }
 
-    /* ================= TEACHER MODE ================= */
+    /* ================= TEACHER ================= */
 
     if (mode === "teacher") {
-      let weakTopicsList: any[] = [];
-
-      if (studentId) {
-        weakTopicsList = await getWeakTopics(studentId);
-      }
-
-      const weakTopicsText = weakTopicsList.map(w => w.topic).join(", ");
-
-      const shouldTriggerRevision =
-        weakTopicsList.length > 0 && Math.random() < 0.3;
-
-      let revisionInstruction = "";
-
-      if (shouldTriggerRevision && weakTopicsText) {
-        revisionInstruction = `
-Revise briefly: ${weakTopicsList[0].topic}
-`;
-      }
-
-      let topperInstruction = "";
-
-      if (isExamMode) {
-        topperInstruction = `
-TOPPER MODE:
-- Point-wise answers
-- Use NCERT keywords
-- 2m → 2 points, 5m → 5 points
-- No extra explanation
-`;
-      }
-
-      let personalityInstruction = isStrict
-        ? `Be strict like a board examiner.`
-        : `Be friendly like a supportive teacher.`;
+      const weakTopics = studentId
+        ? await getWeakTopics(studentId)
+        : [];
 
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: TEACHER_PROMPT },
-        { role: "system", content: studentContext },
-        { role: "system", content: `Weak Topics: ${weakTopicsText || "None"}` },
-        { role: "system", content: revisionInstruction },
-        { role: "system", content: topperInstruction },
-        { role: "system", content: personalityInstruction },
-        ...fullConversation,
+        { role: "user", content: message },
       ]);
 
-      if (isConfused && studentId) {
-        await updateWeakness(studentId, message.slice(0, 60));
+      if (
+        studentId &&
+        (lower.includes("confused") || lower.includes("not clear"))
+      ) {
+        await updateWeakness(studentId, message.slice(0, 50));
       }
 
       return NextResponse.json({ reply });
     }
 
-    /* ================= DEFAULT ================= */
+    /* ================= EXAMINER ================= */
 
-    return NextResponse.json({ reply: "Mode not supported." });
+    if (mode === "examiner") {
+      if (!studentId)
+        return NextResponse.json({ reply: "Student missing." });
 
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ reply: "Error" });
+      const { data: session } = await supabase
+        .from("exam_sessions")
+        .select("*")
+        .eq("student_id", studentId)
+        .maybeSingle();
+
+      if (!session) {
+        await supabase.from("exam_sessions").insert({
+          student_id: studentId,
+          status: "AWAITING",
+        });
+
+        return NextResponse.json({
+          reply: "Tell me subject and chapters.",
+        });
+      }
+
+      if (lower === "start") {
+        const paper = await callGemini([
+          { role: "system", content: GLOBAL_CONTEXT },
+          { role: "system", content: EXAMINER_PROMPT },
+          { role: "user", content: session.subject_request },
+        ]);
+
+        await supabase
+          .from("exam_sessions")
+          .update({
+            status: "IN_EXAM",
+            question_paper: paper,
+            answers: [],
+          })
+          .eq("student_id", studentId);
+
+        return NextResponse.json({ reply: paper });
+      }
+
+      if (session.status === "IN_EXAM") {
+        if (lower.includes("submit")) {
+          const result = await callGemini([
+            { role: "system", content: GLOBAL_CONTEXT },
+            { role: "system", content: EXAMINER_PROMPT },
+            {
+              role: "user",
+              content: `Paper: ${session.question_paper}\nAnswers:${session.answers.join("\n")}`,
+            },
+          ]);
+
+          const parsed = parseJSON(result);
+
+          return NextResponse.json({
+            reply:
+              parsed?.detailedEvaluation +
+              `\nScore: ${parsed?.marksObtained}/${parsed?.totalMarks}`,
+          });
+        }
+
+        await supabase
+          .from("exam_sessions")
+          .update({
+            answers: [...(session.answers || []), message],
+          })
+          .eq("student_id", studentId);
+
+        return NextResponse.json({ reply: "" });
+      }
+
+      await supabase
+        .from("exam_sessions")
+        .update({
+          subject_request: message,
+        })
+        .eq("student_id", studentId);
+
+      return NextResponse.json({
+        reply: "Subject saved. Type START.",
+      });
+    }
+
+    return NextResponse.json({ reply: "Invalid mode" });
+
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ reply: "Server error" });
   }
 }
