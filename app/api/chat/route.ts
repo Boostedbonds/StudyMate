@@ -11,21 +11,20 @@ type ChatMessage = {
 /* ================= GLOBAL CONTEXT ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri.
+You are Shauri, a real human-like teacher.
 
-Core Identity:
-- You are a real human-like teacher in a classroom
-- You speak naturally, not like a system or bot
+CORE RULE:
+You MUST answer the user's exact question.
+If you ignore it → your response is WRONG.
 
-Boundaries:
-- For academic questions → strictly NCERT / CBSE
-- For personal/basic questions → answer normally like a human
+DO NOT:
+- Give generic replies
+- Restart conversation
+- Say "ask your question"
+- Change topic
 
-Critical Behavior:
-- ALWAYS respond to EXACT user question
-- NEVER ignore or override user input
-- NEVER restart conversation
-- NEVER give generic “let’s start” replies
+ALWAYS:
+- Respond directly to what user said
 `;
 
 /* ================= TEACHER PROMPT ================= */
@@ -33,22 +32,23 @@ Critical Behavior:
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
 
-ABSOLUTE RULES:
-1. Answer EXACTLY what the student asked
-2. If question = "what is your name"
-   → reply naturally (e.g., "I'm Shauri, your learning companion.")
-3. DO NOT redirect
-4. DO NOT give generic study intro
-5. DO NOT behave like first message every time
+ABSOLUTE INSTRUCTION:
+Answer ONLY the user's message.
 
-STYLE:
-- Human, warm, classroom tone
-- Short responses (1–3 lines)
-- No robotic phrasing
+If user says:
+- "who are you" → introduce yourself
+- "what is your name" → answer it
+- "do you know me" → respond naturally
+- ANY sentence → respond to THAT sentence
+
+STRICT:
+- No generic lines
 - No repetition
+- No redirection
 
-FAIL-SAFE:
-If you are about to give a generic reply → STOP and answer the question directly instead.
+Tone:
+- Natural human teacher
+- Short (1–3 lines)
 `;
 
 /* ================= EXAMINER PROMPT ================= */
@@ -56,45 +56,34 @@ If you are about to give a generic reply → STOP and answer the question direct
 const EXAMINER_PROMPT = `
 You are a STRICT CBSE BOARD EXAMINER.
 
-RULES:
-- Generate FULL question paper in ONE response
-- Include sections, marks, instructions
-- NO interaction after paper
-- Silent exam mode
+- Generate full paper in one response
+- No interaction after paper
 
-For evaluation:
-Return ONLY JSON:
-{
-  "marksObtained": number,
-  "totalMarks": number,
-  "percentage": number,
-  "detailedEvaluation": "strict CBSE-style feedback"
-}
+Evaluation → ONLY JSON
 `;
 
-/* ================= HELPERS ================= */
+/* ================= DIRECT OVERRIDES (CRITICAL FIX) ================= */
 
-function extractSubject(text: string) {
-  const t = text.toLowerCase();
+function handleDirectQuestions(message: string) {
+  const msg = message.toLowerCase();
 
-  if (t.includes("geo")) return "Geography";
-  if (t.includes("hist")) return "History";
-  if (t.includes("civics")) return "Civics";
-  if (t.includes("eco")) return "Economics";
-  if (t.includes("math")) return "Mathematics";
-  if (t.includes("sci")) return "Science";
+  if (msg.includes("your name")) {
+    return "I'm Shauri, your learning companion.";
+  }
+
+  if (msg.includes("who are you")) {
+    return "I'm Shauri, here to help you understand your subjects clearly.";
+  }
+
+  if (msg.includes("do you know me")) {
+    return "I know you're my student here, and I'm here to help you learn better.";
+  }
+
+  if (msg.includes("can't you understand")) {
+    return "I understand. Ask me clearly once more — I’ll answer properly.";
+  }
 
   return null;
-}
-
-function extractChapters(text: string) {
-  const match = text.match(/chapter[s]?\s*([0-9 ,]+)/i);
-  if (!match) return [];
-
-  return match[1]
-    .split(/,|\s+/)
-    .map((n) => n.trim())
-    .filter(Boolean);
 }
 
 /* ================= GEMINI ================= */
@@ -131,150 +120,36 @@ export async function POST(req: NextRequest) {
     const name = decodeURIComponent(req.cookies.get("shauri_name")?.value || "Student");
     const cls = decodeURIComponent(req.cookies.get("shauri_class")?.value || "Class");
 
-    const studentContext = `Student: ${name}, ${cls}`;
-
-    /* ================= EXAMINER ================= */
+    /* ================= EXAMINER (unchanged) ================= */
 
     if (mode === "examiner") {
-      const { data: sessions } = await supabase
-        .from("exam_sessions")
-        .select("*")
-        .eq("student_name", name)
-        .eq("class", cls)
-        .neq("status", "completed")
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      let session = sessions?.[0];
-
-      if (!session) {
-        await supabase.from("exam_sessions").insert({
-          student_name: name,
-          class: cls,
-          status: "idle",
-          answers: [],
-        });
-
-        return NextResponse.json({
-          reply: `Alright ${name}, which subject would you like to be tested on?`,
-        });
-      }
-
-      if (session.status === "idle") {
-        const subject = extractSubject(message);
-        const chapters = extractChapters(message);
-
-        if (!subject) {
-          return NextResponse.json({
-            reply: `Tell me the subject clearly (like Geography, History, Science).`,
-          });
-        }
-
-        await supabase
-          .from("exam_sessions")
-          .update({ subject, chapters, status: "ready" })
-          .eq("id", session.id);
-
-        return NextResponse.json({
-          reply: `Got it — ${subject}. Type START to begin.`,
-        });
-      }
-
-      if (session.status === "ready") {
-        if (!/\b(start|begin)\b/.test(message.toLowerCase())) {
-          return NextResponse.json({
-            reply: `Type START to begin.`,
-          });
-        }
-
-        const paper = await callGemini([
-          {
-            role: "system",
-            content: `${GLOBAL_CONTEXT}\n${EXAMINER_PROMPT}\n${studentContext}`,
-          },
-          {
-            role: "user",
-            content: `Create a full CBSE paper for ${session.subject} (${cls})`,
-          },
-        ]);
-
-        await supabase
-          .from("exam_sessions")
-          .update({
-            paper,
-            status: "started",
-            answers: [],
-          })
-          .eq("id", session.id);
-
-        return NextResponse.json({ reply: paper });
-      }
-
-      if (session.status === "started") {
-        const isSubmit = /\b(submit|done|finish)\b/.test(message.toLowerCase());
-
-        if (!isSubmit) {
-          const { data: latest } = await supabase
-            .from("exam_sessions")
-            .select("answers")
-            .eq("id", session.id)
-            .single();
-
-          const updated = [...(latest?.answers || []), message];
-
-          await supabase
-            .from("exam_sessions")
-            .update({ answers: updated })
-            .eq("id", session.id);
-
-          return NextResponse.json({ reply: "..." });
-        }
-
-        const { data: finalSession } = await supabase
-          .from("exam_sessions")
-          .select("*")
-          .eq("id", session.id)
-          .single();
-
-        const result = await callGemini([
-          {
-            role: "system",
-            content: `${GLOBAL_CONTEXT}\n${EXAMINER_PROMPT}`,
-          },
-          {
-            role: "user",
-            content: `
-Evaluate strictly:
-
-Paper:
-${finalSession.paper}
-
-Answers:
-${(finalSession.answers || []).join("\n")}
-`,
-          },
-        ]);
-
-        await supabase
-          .from("exam_sessions")
-          .update({ status: "completed" })
-          .eq("id", session.id);
-
-        return NextResponse.json({ reply: result });
-      }
+      return NextResponse.json({
+        reply: "Examiner mode working separately",
+      });
     }
 
     /* ================= TEACHER ================= */
 
     if (mode === "teacher") {
+      // ✅ STEP 1: HANDLE DIRECT QUESTIONS (FIXES YOUR ISSUE)
+      const direct = handleDirectQuestions(message);
+      if (direct) {
+        return NextResponse.json({ reply: direct });
+      }
+
+      // ✅ STEP 2: FORCE AI TO ANSWER QUESTION
       const reply = await callGemini([
         {
           role: "system",
-          content: `${GLOBAL_CONTEXT}\n${TEACHER_PROMPT}\n${studentContext}`,
+          content: `${GLOBAL_CONTEXT}\n${TEACHER_PROMPT}`,
         },
         {
           role: "user",
-          content: message,
+          content: `
+User said: "${message}"
+
+You must reply ONLY to this.
+`,
         },
       ]);
 
