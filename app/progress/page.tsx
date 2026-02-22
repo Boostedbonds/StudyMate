@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header";
+import { supabase } from "../lib/supabase"; // ✅ added
 
 type ExamAttempt = {
   id: string;
@@ -46,13 +47,51 @@ export default function ProgressPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("shauri_exam_attempts");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setAttempts(parsed);
-      generateAISummary(parsed);
-    }
+    fetchAttempts();
   }, []);
+
+  async function fetchAttempts() {
+    const name = decodeURIComponent(
+      document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("shauri_name="))
+        ?.split("=")[1] || ""
+    );
+
+    const cls = decodeURIComponent(
+      document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("shauri_class="))
+        ?.split("=")[1] || ""
+    );
+
+    const { data, error } = await supabase
+      .from("exam_attempts")
+      .select("*")
+      .eq("student_name", name)
+      .eq("class", cls)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const mapped: ExamAttempt[] =
+      data?.map((d: any) => ({
+        id: d.id,
+        date: d.created_at,
+        mode: "examiner",
+        subject: d.subject || "General",
+        chapters: [],
+        timeTakenSeconds: 0,
+        rawAnswerText: "",
+        scorePercent: d.percentage,
+      })) || [];
+
+    setAttempts(mapped);
+    generateAISummary(mapped);
+  }
 
   async function generateAISummary(data: ExamAttempt[]) {
     if (!data.length) return;
@@ -140,10 +179,6 @@ ${aiSummary || "No AI summary available yet."}
     reader.onload = () => {
       const parsed = JSON.parse(reader.result as string);
       if (Array.isArray(parsed)) {
-        localStorage.setItem(
-          "shauri_exam_attempts",
-          JSON.stringify(parsed)
-        );
         setAttempts(parsed);
         generateAISummary(parsed);
       }
@@ -173,58 +208,16 @@ ${aiSummary || "No AI summary available yet."}
           width: "100%",
         }}
       >
-        <button
-          onClick={() => (window.location.href = "/modes")}
-          style={{
-            padding: "10px 16px",
-            background: "#2563eb",
-            color: "#fff",
-            borderRadius: 12,
-            border: "none",
-          }}
-        >
+        <button onClick={() => (window.location.href = "/modes")}>
           ← Back
         </button>
 
         <div style={{ display: "flex", gap: 12 }}>
-          <button
-            onClick={exportProgress}
-            style={{
-              padding: "10px 16px",
-              background: "#0d9488",
-              color: "#fff",
-              borderRadius: 12,
-              border: "none",
-            }}
-          >
-            Export
-          </button>
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              padding: "10px 16px",
-              background: "#7c3aed",
-              color: "#fff",
-              borderRadius: 12,
-              border: "none",
-            }}
-          >
+          <button onClick={exportProgress}>Export</button>
+          <button onClick={() => fileInputRef.current?.click()}>
             Import
           </button>
-
-          <button
-            onClick={generatePDF}
-            style={{
-              padding: "10px 16px",
-              background: "#ea580c",
-              color: "#fff",
-              borderRadius: 12,
-              border: "none",
-            }}
-          >
-            PDF
-          </button>
+          <button onClick={generatePDF}>PDF</button>
         </div>
       </div>
 
@@ -238,15 +231,7 @@ ${aiSummary || "No AI summary available yet."}
         }
       />
 
-      <main
-        style={{
-          flex: 1,
-          maxWidth: 1400,
-          margin: "0 auto",
-          padding: "24px 32px 64px",
-          width: "100%",
-        }}
-      >
+      <main style={{ flex: 1, maxWidth: 1400, margin: "0 auto", padding: "24px 32px 64px", width: "100%" }}>
         <h1 style={{ fontSize: 36, marginBottom: 24 }}>
           Progress Dashboard
         </h1>
@@ -254,87 +239,24 @@ ${aiSummary || "No AI summary available yet."}
         {subjects.length === 0 ? (
           <p>No exam data available yet.</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: 40,
-            }}
-          >
-            {/* LEFT – Vertical Graph */}
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 24,
-                padding: 32,
-                boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-                display: "flex",
-                alignItems: "flex-end",
-                gap: 30,
-                height: 320,
-              }}
-            >
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 40 }}>
+            <div style={{ background: "#fff", borderRadius: 24, padding: 32, display: "flex", alignItems: "flex-end", gap: 30, height: 320 }}>
               {subjects.map((s) => {
-                const barHeight = Math.max(
-                  (s.latest / 100) * 260,
-                  8
-                );
+                const barHeight = Math.max((s.latest / 100) * 260, 8);
 
                 return (
-                  <div
-                    key={s.subject}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      flex: 1,
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: barHeight,
-                        width: 40,
-                        background: s.color,
-                        borderRadius: 8,
-                        transition: "all 0.4s ease",
-                      }}
-                    />
-
-                    <div
-                      style={{
-                        marginTop: 10,
-                        fontSize: 13,
-                        textAlign: "center",
-                      }}
-                    >
-                      {s.subject}
-                    </div>
-
-                    <div style={{ fontSize: 12, marginTop: 4 }}>
-                      {s.latest}%
-                    </div>
+                  <div key={s.subject} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+                    <div style={{ height: barHeight, width: 40, background: s.color, borderRadius: 8 }} />
+                    <div style={{ marginTop: 10 }}>{s.subject}</div>
+                    <div>{s.latest}%</div>
                   </div>
                 );
               })}
             </div>
 
-            {/* RIGHT – AI Analysis */}
-            <div
-              style={{
-                background: "#ffffff",
-                borderRadius: 24,
-                padding: 28,
-                boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-              }}
-            >
-              <h2 style={{ fontSize: 22, marginBottom: 16 }}>
-                Academic Analysis
-              </h2>
-
-              <p style={{ lineHeight: 1.6 }}>
-                {aiSummary ||
-                  "Analysis will appear after tests are evaluated."}
-              </p>
+            <div style={{ background: "#fff", borderRadius: 24, padding: 28 }}>
+              <h2>Academic Analysis</h2>
+              <p>{aiSummary || "Analysis will appear after tests are evaluated."}</p>
             </div>
           </div>
         )}
