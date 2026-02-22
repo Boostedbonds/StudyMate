@@ -17,51 +17,119 @@ type StudentContext = {
 /* ================= GLOBAL CONTEXT ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri, strictly aligned to NCERT and CBSE.
-Never go outside syllabus.
+You are Shauri, strictly aligned to:
+- NCERT textbooks
+- Official CBSE syllabus
+- CBSE board exam pattern
+Never go outside CBSE scope.
+Never guess the class.
 `;
 
-/* ================= TEACHER PROMPT ================= */
+/* ================= TEACHER PROMPT (MENTOR + ADAPTIVE + HUMAN) ================= */
 
 const TEACHER_PROMPT = `
 You are in TEACHER MODE.
 
-DO NOT assume subject.
-Let student decide what to study.
+You are a real Class Teacher + Mentor.
 
-If student asks ANY academic question → answer it.
+=====================
+CORE BEHAVIOR
+=====================
 
-Teach step-by-step, simple, structured, keyword-based.
+1. If student asks ANY academic question → answer immediately.
 
-Ask 2 short questions at end.
+2. If student sends casual messages:
+- respond like a human teacher
+- keep it short
+- gently bring them back to studies
+
+Example:
+"Of course 😊 you're my student. Now tell me, what would you like to study?"
+
+3. Never force topic.
+4. Never ignore student message.
+5. Never repeat same question again.
+
+=====================
+TEACHING STYLE
+=====================
+
+- Step-by-step
+- Simple language
+- Short explanations
+- Use examples
+- Use NCERT keywords naturally
+
+=====================
+SCORING MODE
+=====================
+
+If question is exam-type:
+- Use point-wise answers
+- Include keywords
+- Follow marks structure
+
+=====================
+ENGAGEMENT
+=====================
+
+Ask exactly 2 short questions after explanation.
+
+=====================
+TONE
+=====================
+
+- Human
+- Supportive
+- Calm
+- Never robotic
 `;
 
-/* ================= EXAMINER PROMPT ================= */
+/* ================= HELPERS ================= */
 
-const EXAMINER_PROMPT = `
-You are a STRICT CBSE BOARD EXAMINER.
+async function updateWeakness(studentId: string, topic: string) {
+  if (!topic) return;
 
-Rules:
-- No leniency
-- Only NCERT correctness
-- No assumption
+  const { data } = await supabase
+    .from("student_memory")
+    .select("*")
+    .eq("student_id", studentId)
+    .eq("topic", topic)
+    .maybeSingle();
 
-Format:
+  if (data) {
+    await supabase
+      .from("student_memory")
+      .update({
+        weakness_level: Math.min((data.weakness_level ?? 1) + 1, 5),
+        updated_at: new Date(),
+      })
+      .eq("id", data.id);
+  } else {
+    await supabase.from("student_memory").insert({
+      student_id: studentId,
+      topic,
+      weakness_level: 1,
+    });
+  }
+}
 
-Q1: (2/2) ✔
-Q2: (1/3) Missing concept: ___
-Q3: (0/2) Incorrect
+async function getWeakTopics(studentId: string) {
+  const { data } = await supabase
+    .from("student_memory")
+    .select("topic, weakness_level")
+    .eq("student_id", studentId)
+    .order("weakness_level", { ascending: false })
+    .limit(3);
 
-FINAL:
-Marks Obtained: X
-Total Marks: Y
-Percentage: Z%
-`;
+  return data || [];
+}
 
 /* ================= GEMINI ================= */
 
 async function callGemini(messages: ChatMessage[], temperature = 0.3) {
   const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return "AI configuration error.";
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -73,6 +141,7 @@ async function callGemini(messages: ChatMessage[], temperature = 0.3) {
           role: "user",
           parts: [{ text: m.content }],
         })),
+        generationConfig: { temperature },
       }),
     }
   );
@@ -80,8 +149,8 @@ async function callGemini(messages: ChatMessage[], temperature = 0.3) {
   const data = await res.json();
 
   return (
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ??
-    "Error generating response"
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+    "Unable to generate response."
   );
 }
 
@@ -90,105 +159,142 @@ async function callGemini(messages: ChatMessage[], temperature = 0.3) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const mode = body.mode;
-    const message = body.message || "";
+    const mode: string = body?.mode ?? "";
 
-    let student: StudentContext = body.student || {};
+    let student: StudentContext | undefined = body?.student;
 
-    if (!student.name || !student.class) {
-      const name = req.cookies.get("shauri_name")?.value;
-      const cls = req.cookies.get("shauri_class")?.value;
+    if (!student?.name || !student?.class) {
+      const nameFromCookie = req.cookies.get("shauri_name")?.value;
+      const classFromCookie = req.cookies.get("shauri_class")?.value;
 
-      if (name && cls) {
+      if (nameFromCookie && classFromCookie) {
         student = {
-          name: decodeURIComponent(name),
-          class: decodeURIComponent(cls),
+          name: decodeURIComponent(nameFromCookie),
+          class: decodeURIComponent(classFromCookie),
           board: "CBSE",
         };
       }
     }
 
-    /* ================= EXAMINER MODE ================= */
+    const history: ChatMessage[] =
+      Array.isArray(body?.history)
+        ? body.history
+        : Array.isArray(body?.messages)
+        ? body.messages
+        : [];
 
-    if (mode === "examiner") {
+    const message: string =
+      body?.message ??
+      history.filter((m) => m.role === "user").pop()?.content ??
+      "";
 
-      // STEP 1: Ask subject properly
-      if (!message || message.toLowerCase() === "hi") {
-        return NextResponse.json({
-          reply: `Tell me the subject and chapters for your test (e.g., "Science Chapter 1–3").`,
-        });
-      }
+    const lower = message.toLowerCase();
 
-      // STEP 2: START EXAM
-      if (message.toLowerCase().includes("start")) {
+    /* ================= FLAGS ================= */
 
-        const paper = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          {
-            role: "user",
-            content: `
-Generate a STRICT CBSE question paper.
+    const isConfused =
+      lower.includes("don't understand") ||
+      lower.includes("confused") ||
+      lower.includes("not clear");
 
-Class: ${student.class}
-Subject/Chapters: ${message}
+    const isExamMode =
+      lower.includes("answer") ||
+      lower.includes("write") ||
+      lower.includes("3 marks") ||
+      lower.includes("5 marks") ||
+      lower.includes("2 marks");
 
-Rules:
-- Cover ALL topics mentioned
-- Balanced difficulty
-- Section A: MCQ
-- Section B: Short answers
-- Section C: Long answers
-- Section D: Case-based
+    const isStrict =
+      lower.includes("strict") || lower.includes("examiner style");
 
-Mention total marks & time.
-No answers.
-`,
-          },
-        ]);
+    /* ================= CONTEXT ================= */
 
-        return NextResponse.json({ reply: paper });
-      }
+    const studentContext = `
+Student Name: ${student?.name ?? "Student"}
+Class: ${student?.class ?? ""}
+Board: CBSE
+`;
 
-      // STEP 3: SUBMIT
-      if (message.toLowerCase().includes("submit")) {
+    const fullConversation: ChatMessage[] = [
+      ...history,
+      { role: "user", content: message },
+    ];
 
-        const evaluation = await callGemini([
-          { role: "system", content: GLOBAL_CONTEXT },
-          { role: "system", content: EXAMINER_PROMPT },
-          {
-            role: "user",
-            content: `Evaluate strictly:\n${message}`,
-          },
-        ]);
+    let studentId: string | null = null;
 
-        return NextResponse.json({ reply: evaluation });
-      }
+    if (student?.name && student?.class) {
+      const { data } = await supabase
+        .from("students")
+        .select("id")
+        .eq("name", student.name)
+        .eq("class", student.class)
+        .maybeSingle();
 
-      return NextResponse.json({
-        reply: `Type START to begin test or SUBMIT after writing answers.`,
-      });
+      if (data) studentId = data.id;
     }
 
     /* ================= TEACHER MODE ================= */
 
     if (mode === "teacher") {
+      let weakTopicsList: any[] = [];
+
+      if (studentId) {
+        weakTopicsList = await getWeakTopics(studentId);
+      }
+
+      const weakTopicsText = weakTopicsList.map(w => w.topic).join(", ");
+
+      const shouldTriggerRevision =
+        weakTopicsList.length > 0 && Math.random() < 0.3;
+
+      let revisionInstruction = "";
+
+      if (shouldTriggerRevision && weakTopicsText) {
+        revisionInstruction = `
+Revise briefly: ${weakTopicsList[0].topic}
+`;
+      }
+
+      let topperInstruction = "";
+
+      if (isExamMode) {
+        topperInstruction = `
+TOPPER MODE:
+- Point-wise answers
+- Use NCERT keywords
+- 2m → 2 points, 5m → 5 points
+- No extra explanation
+`;
+      }
+
+      let personalityInstruction = isStrict
+        ? `Be strict like a board examiner.`
+        : `Be friendly like a supportive teacher.`;
 
       const reply = await callGemini([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: TEACHER_PROMPT },
-        {
-          role: "system",
-          content: `Student: ${student.name}, Class: ${student.class}`,
-        },
-        { role: "user", content: message },
+        { role: "system", content: studentContext },
+        { role: "system", content: `Weak Topics: ${weakTopicsText || "None"}` },
+        { role: "system", content: revisionInstruction },
+        { role: "system", content: topperInstruction },
+        { role: "system", content: personalityInstruction },
+        ...fullConversation,
       ]);
+
+      if (isConfused && studentId) {
+        await updateWeakness(studentId, message.slice(0, 60));
+      }
 
       return NextResponse.json({ reply });
     }
 
-    return NextResponse.json({ reply: "Invalid mode" });
+    /* ================= DEFAULT ================= */
 
-  } catch (e) {
-    return NextResponse.json({ reply: "Server error" });
+    return NextResponse.json({ reply: "Mode not supported." });
+
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ reply: "Error" });
   }
 }
