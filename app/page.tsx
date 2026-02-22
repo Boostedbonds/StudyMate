@@ -20,10 +20,6 @@ function getDynamicLine() {
   return "Even now, progress is possible.";
 }
 
-function getMotivation() {
-  return "Small steps today build big success tomorrow.";
-}
-
 export default function HomePage() {
   const [entered, setEntered] = useState(false);
   const [warp, setWarp] = useState(false);
@@ -54,16 +50,13 @@ export default function HomePage() {
 
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
 
-    document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/; SameSite=Lax`;
-    document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/; SameSite=Lax`;
-
     window.location.href = "/modes";
   }
 
   return (
     <div className={orbitron.className} style={{ minHeight: "100vh" }}>
-
-      {/* 🌌 HERO */}
+      
+      {/* HERO */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -77,48 +70,63 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* 🌞 SUN */}
-            <div
+            {/* SUN (animated pulse) */}
+            <motion.div
+              animate={{
+                scale: [1, 1.05, 1],
+                opacity: [0.9, 1, 0.9],
+              }}
+              transition={{ duration: 4, repeat: Infinity }}
               style={{
                 position: "absolute",
                 top: "22%",
                 left: "50%",
                 transform: "translate(-50%, -50%)",
-                width: "520px",
-                height: "520px",
+                width: "420px",
+                height: "420px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle, rgba(255,215,120,1) 0%, rgba(255,180,60,0.6) 40%, rgba(255,140,0,0.2) 65%, transparent 80%)",
+                  "radial-gradient(circle, rgba(255,215,120,0.95) 0%, rgba(255,170,60,0.4) 55%, transparent 75%)",
+                filter: "blur(4px)",
               }}
             />
 
-            {/* ✨ TITLE */}
-            <div style={{ position: "absolute", top: "22%", width: "100%", textAlign: "center", zIndex: 5 }}>
+            {/* TITLE */}
+            <div
+              style={{
+                position: "absolute",
+                top: "22%",
+                width: "100%",
+                textAlign: "center",
+                zIndex: 5,
+              }}
+            >
               <h1
                 style={{
                   fontSize: "72px",
                   letterSpacing: "0.5em",
                   fontWeight: 700,
-                  background: "linear-gradient(to bottom, #FFD700, #D4AF37, #A67C00)",
+                  background:
+                    "linear-gradient(to bottom, #FFD700, #E6C200, #A67C00)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   textShadow:
-                    "0 0 25px rgba(255,215,120,0.8), 0 0 50px rgba(255,200,80,0.6), 0 2px 6px rgba(0,0,0,0.9)",
+                    "0 0 10px rgba(255,215,120,0.7), 0 0 25px rgba(255,200,80,0.5), 0 2px 4px rgba(0,0,0,0.7)",
                 }}
               >
                 SHAURI
               </h1>
 
-              <p style={{ marginTop: 10, color: "#fff" }}>
+              <p style={{ marginTop: 12, color: "#fff", letterSpacing: "0.1em" }}>
                 THE COURAGE TO MASTER THE FUTURE
               </p>
 
-              <p style={{ color: "#FFD700" }}>
+              <p style={{ color: "#FFD700", marginTop: 4 }}>
                 CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
               </p>
             </div>
 
-            {/* ⛰️ MOUNTAIN */}
+            {/* MOUNTAIN */}
             <svg viewBox="0 0 1440 800" style={{ position: "absolute", bottom: 0 }}>
               <path
                 d="M0,730 C400,650 700,600 720,500 C740,600 1000,650 1440,720 L1440,800 L0,800 Z"
@@ -126,12 +134,14 @@ export default function HomePage() {
               />
             </svg>
 
-            {/* 🎯 CTA (FIXED POSITION + CLEAR SEPARATION) */}
+            {/* CTA */}
             <motion.div
               onClick={handleEnter}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
               style={{
                 position: "absolute",
-                bottom: "42%", // ⬅️ lifted above peak
+                bottom: "40%",
                 left: "50%",
                 transform: "translateX(-50%)",
                 letterSpacing: "0.4em",
@@ -139,28 +149,34 @@ export default function HomePage() {
                 cursor: "pointer",
                 textAlign: "center",
               }}
-              animate={{ opacity: [0.5, 1, 0.5] }}
+              animate={{ opacity: [0.6, 1, 0.6] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              <div style={{ fontSize: "16px" }}>BEGIN THE ASCENT</div>
+              BEGIN THE ASCENT
               <div style={{ fontSize: "12px", marginTop: 10 }}>
                 {getDynamicLine()}
               </div>
             </motion.div>
 
-            {/* ⚡ TRANSITION */}
+            {/* DAWN TRANSITION */}
             {warp && (
               <motion.div
-                style={{ position: "absolute", inset: 0, background: "white" }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                style={{
+                  transformOrigin: "bottom",
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(to bottom, #fff7e6, #f3e2b3, #e6d3a3)",
+                }}
               />
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 🌄 ACCESS PAGE (DAWN FEEL FIXED) */}
+      {/* ACCESS PAGE */}
       {entered && (
         <div
           style={{
@@ -169,11 +185,11 @@ export default function HomePage() {
             justifyContent: "center",
             alignItems: "center",
             flexDirection: "column",
-            background: "linear-gradient(to bottom, #f5e6c8, #f8fafc)",
-            padding: "20px",
+            background:
+              "linear-gradient(to bottom, #fff7e6, #f3e2b3, #e6d3a3)",
           }}
         >
-          <h1 style={{ marginBottom: 20 }}>SHAURI</h1>
+          <h1 style={{ fontSize: 40, marginBottom: 30 }}>SHAURI</h1>
 
           <form
             onSubmit={handleSubmit}
@@ -181,7 +197,8 @@ export default function HomePage() {
               display: "grid",
               gap: 18,
               width: "100%",
-              maxWidth: "320px",
+              maxWidth: "340px",
+              backdropFilter: "blur(6px)",
             }}
           >
             <input
@@ -214,20 +231,27 @@ export default function HomePage() {
               <div style={{ color: "red", fontSize: "13px" }}>{error}</div>
             )}
 
-            <button style={buttonStyle}>STEP IN</button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              style={buttonStyle}
+            >
+              STEP IN
+            </motion.button>
           </form>
 
-          {/* 💬 MOTIVATION (ADDED) */}
-          <div
+          {/* STRONG QUOTE */}
+          <p
             style={{
-              position: "absolute",
-              bottom: 30,
-              fontSize: "13px",
-              opacity: 0.7,
+              marginTop: "70px",
+              fontSize: "14px",
+              opacity: 0.8,
+              textAlign: "center",
+              maxWidth: "400px",
             }}
           >
-            {getMotivation()}
-          </div>
+            Discipline today builds the confidence of tomorrow.
+          </p>
         </div>
       )}
     </div>
@@ -236,16 +260,18 @@ export default function HomePage() {
 
 const inputStyle = {
   padding: "14px",
-  borderRadius: "12px",
-  border: "1px solid #d4af37",
+  borderRadius: "14px",
+  border: "1px solid #D4AF37",
   fontSize: "14px",
+  outline: "none",
+  transition: "all 0.2s ease",
 };
 
 const buttonStyle = {
   padding: "14px",
   borderRadius: "999px",
   border: "1px solid #D4AF37",
-  background: "#fff",
+  background: "transparent",
   fontWeight: 600,
   cursor: "pointer",
 };
