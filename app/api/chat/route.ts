@@ -26,34 +26,34 @@ type ExamSession = {
 /* ================= GLOBAL ================= */
 
 const GLOBAL_CONTEXT = `
-You are Shauri — aligned strictly to NCERT and CBSE.
+You are Shauri — strictly aligned to NCERT and CBSE.
 
-You must:
-- Adapt answers to student's class
+- Adapt to student's class
 - Stay within syllabus
-- Be clear, human, and helpful
+- Be clear, human, and concise
 `;
 
 /* ================= PROMPTS ================= */
 
 const TEACHER_PROMPT = `
-You are a real CBSE teacher.
+You are a real CBSE school teacher.
+
+STRICT RULES:
+- MAX 3–4 lines only
+- Teach ONLY what is asked
+- NO introductions
+- NO "let's start" / NO "today we will"
+- NO repeating class info
+- NO asking what to learn again
+
+BEHAVIOR:
+- Greeting → short reply only
+- Question → direct answer
+- Topic → start teaching immediately
 
 STYLE:
 - Human, calm, mentor-like
-- Teach ONE concept at a time
-- Max 5–6 lines
-- After teaching → ask 1–2 questions
-
-RULES:
-- If greeting → short natural reply
-- If topic already given → START teaching immediately
-- NEVER ask "what do you want to learn" again
-- NO repetition
-- NO full chapter dump
-
-FLOW:
-Explain → Ask → Wait → Continue
+- End with ONE small question (optional)
 `;
 
 const ORAL_PROMPT = `
@@ -76,12 +76,22 @@ Analyze student performance.
 `;
 
 const EXAMINER_PROMPT = `
-Generate CBSE question paper.
+You are a strict CBSE examiner.
 
-- Proper sections
-- Marks distribution
-- Time mentioned
-- No explanation
+- Professional human tone (NOT robotic)
+- Generate full question paper only
+- No explanations
+- No extra text
+
+FORMAT:
+Class, Subject
+Time & Marks
+
+Section A
+Section B
+Section C
+
+Clear, real board style questions.
 `;
 
 /* ================= MEMORY ================= */
@@ -95,11 +105,11 @@ function getKey(student?: StudentContext) {
 /* ================= HELPERS ================= */
 
 function isGreeting(text: string) {
-  return ["hi", "hello", "hey"].includes(text);
+  return /^(hi|hello|hey)\b/i.test(text);
 }
 
 function isSubmit(text: string) {
-  return ["submit", "done", "finish", "finished"].includes(text);
+  return /^(submit|done|finish|finished)\b/i.test(text);
 }
 
 function isStart(text: string) {
@@ -163,8 +173,9 @@ export async function POST(req: NextRequest) {
     const lower = message.toLowerCase().trim();
     const key = getKey(student);
 
+    // 🔥 LIMIT CONTEXT (fix repetition + overtalking)
     const conversation: ChatMessage[] = [
-      ...history,
+      ...history.slice(-4),
       { role: "user", content: message },
     ];
 
@@ -176,14 +187,17 @@ export async function POST(req: NextRequest) {
 
       if (isGreeting(lower)) {
         return NextResponse.json({
-          reply: `Hi ${name} 👋 Class ${cls} — what would you like to learn today?`,
+          reply: `Hi ${name} 👋`,
         });
       }
 
       const reply = await callAI([
         { role: "system", content: GLOBAL_CONTEXT },
         { role: "system", content: TEACHER_PROMPT },
-        { role: "system", content: `Student: ${name}, Class ${cls}` },
+        {
+          role: "system",
+          content: `Student name is ${name}. Class is ${cls}. Teach strictly at this level.`,
+        },
         ...conversation,
       ]);
 
@@ -198,9 +212,7 @@ export async function POST(req: NextRequest) {
 
       if (isGreeting(lower) && session.status === "IDLE") {
         return NextResponse.json({
-          reply: `Hi ${student?.name || "Student"}, Class ${
-            student?.class || ""
-          }. I'm your examiner.\n\nTell me subject and chapters.`,
+          reply: `Hello ${student?.name || "Student"}.\nProvide subject and chapters.`,
         });
       }
 
@@ -209,11 +221,7 @@ export async function POST(req: NextRequest) {
           { role: "system", content: GLOBAL_CONTEXT },
           {
             role: "user",
-            content: `
-Evaluate answers:
-
-${session.answers.join("\n")}
-`,
+            content: `Evaluate answers:\n${session.answers.join("\n")}`,
           },
         ]);
 
@@ -245,7 +253,7 @@ ${session.answers.join("\n")}
         });
 
         return NextResponse.json({
-          reply: "Subject noted. Type START to begin.",
+          reply: "Subject noted. Type START.",
         });
       }
 
@@ -272,7 +280,7 @@ ${session.answers.join("\n")}
       }
 
       return NextResponse.json({
-        reply: "Please provide subject and chapters.",
+        reply: "Provide subject and chapters.",
       });
     }
 
