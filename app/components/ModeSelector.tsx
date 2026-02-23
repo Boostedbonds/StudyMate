@@ -52,7 +52,7 @@ export default function ModeSelector() {
         flexDirection: "column",
       }}
     >
-      {/* HEADER (UNCHANGED LOGIC) */}
+      {/* HEADER */}
       <Header onLogout={() => (window.location.href = "/")} />
 
       <main
@@ -118,7 +118,7 @@ export default function ModeSelector() {
           CHOOSE YOUR LEARNING MODE
         </h2>
 
-        {/* SUB HEADER UPDATED */}
+        {/* SUB HEADER */}
         <p
           style={{
             textAlign: "center",
@@ -131,7 +131,7 @@ export default function ModeSelector() {
           SELECT YOUR PATH TO BEGIN THE ASCENT
         </p>
 
-        {/* CARDS — FORCED SINGLE ROW */}
+        {/* CARDS */}
         <div
           style={{
             display: "grid",
