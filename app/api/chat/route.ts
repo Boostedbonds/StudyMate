@@ -3,6 +3,10 @@ import { supabase } from "../../lib/supabase";
 import { systemPrompt } from "../../lib/prompts";
 import { syllabus } from "../../lib/syllabus";
 
+// ─────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────
+
 type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
@@ -12,43 +16,92 @@ type StudentContext = {
   name?: string;
   class?: string;
   board?: string;
+  sessionId?: string; // ✅ FIX #2: unique session ID per student, generated client-side
 };
 
-// ─────────────────────────────────────────────────────────────
-// EXAM SESSION
-//
-// FREE-FLOW MODEL:
-//   • Full paper shown at once when student types "start"
-//   • Timer starts at that exact moment
-//   • Every message + upload between start & submit is
-//     appended to answerLog — no forced Q-by-Q flow
-//   • Student types submit/done/finish → full evaluation
-//
-// Memory safety:
-//   • answerLog lives server-side in examSessions Map
-//   • Nothing depends on client-side conversation history
-//   • Safe for 3–3.5 hour exams with unlimited messages
-// ─────────────────────────────────────────────────────────────
+// Mirrors the `exam_sessions` table in Supabase:
+// CREATE TABLE exam_sessions (
+//   session_key   TEXT PRIMARY KEY,
+//   status        TEXT NOT NULL DEFAULT 'IDLE',
+//   subject_request TEXT,
+//   subject       TEXT,
+//   question_paper TEXT,
+//   answer_log    JSONB NOT NULL DEFAULT '[]',
+//   started_at    BIGINT,
+//   total_marks   INT,
+//   syllabus_from_upload TEXT,
+//   student_name  TEXT,
+//   student_class TEXT,
+//   student_board TEXT,
+//   updated_at    TIMESTAMPTZ DEFAULT NOW()
+// );
 type ExamSession = {
+  session_key: string;
   status: "IDLE" | "READY" | "IN_EXAM";
-  subjectRequest?: string;
+  subject_request?: string;
   subject?: string;
-  questionPaper?: string;
-  answerLog: string[];
-  startedAt?: number;
-  totalMarksOnPaper?: number;
-  syllabusFromUpload?: string; // ← NEW: custom syllabus extracted from student-uploaded PDF/image
+  question_paper?: string;
+  answer_log: string[];
+  started_at?: number;
+  total_marks?: number;
+  syllabus_from_upload?: string;
+  student_name?: string;
+  student_class?: string;
+  student_board?: string;
 };
 
-const examSessions = new Map<string, ExamSession>();
+type ChapterEntry = { number: number; name: string };
+
+// ─────────────────────────────────────────────────────────────
+// SUPABASE SESSION HELPERS
+// All exam state lives in Supabase — zero in-memory state.
+// Safe across serverless cold starts, concurrent users, deploys.
+// ─────────────────────────────────────────────────────────────
+
+async function getSession(key: string): Promise<ExamSession | null> {
+  try {
+    const { data, error } = await supabase
+      .from("exam_sessions")
+      .select("*")
+      .eq("session_key", key)
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      ...data,
+      answer_log: Array.isArray(data.answer_log) ? data.answer_log : [],
+    } as ExamSession;
+  } catch {
+    return null;
+  }
+}
+
+async function saveSession(session: ExamSession): Promise<void> {
+  try {
+    await supabase.from("exam_sessions").upsert(
+      { ...session, updated_at: new Date().toISOString() },
+      { onConflict: "session_key" }
+    );
+  } catch {
+    // Log but never throw — exam must continue even if a single save glitches
+    console.error("saveSession failed for key:", session.session_key);
+  }
+}
+
+async function deleteSession(key: string): Promise<void> {
+  try {
+    await supabase.from("exam_sessions").delete().eq("session_key", key);
+  } catch {
+    console.error("deleteSession failed for key:", key);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // SYLLABUS HELPERS
 // Class 9  → local syllabus.ts (primary) + AI fills any gaps
 // All other classes → AI fetches from NCERT training knowledge
 // ─────────────────────────────────────────────────────────────
-
-type ChapterEntry = { number: number; name: string };
 
 function getChaptersForSubject(
   subjectRequest: string,
@@ -57,7 +110,6 @@ function getChaptersForSubject(
   const req = subjectRequest.toLowerCase();
   const classNum = parseInt(studentClass) || 9;
 
-  // ── Class 9: local syllabus.ts first, AI fills any gaps ───
   if (classNum === 9) {
     const s = syllabus.subjects;
 
@@ -165,9 +217,9 @@ function getChaptersForSubject(
       return {
         subjectName: "English – Beehive",
         chapterList:
-          `FICTION:\n${fiction.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n` +
-          `POETRY:\n${poetry.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n` +
-          `DRAMA:\n${drama.map((t, i) => `${i + 1}. ${t}`).join("\n")}` +
+          `FICTION:\n${fiction.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}\n\n` +
+          `POETRY:\n${poetry.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}\n\n` +
+          `DRAMA:\n${drama.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}` +
           `\n\nNOTE FOR AI: If any lesson/poem/drama from Class 9 English Beehive or ` +
           `Moments (supplementary reader) is missing above, retrieve it from the ` +
           `official NCERT syllabus and include it.`,
@@ -179,15 +231,14 @@ function getChaptersForSubject(
       return {
         subjectName: "Hindi",
         chapterList:
-          `PROSE & POETRY:\n${prose_poetry.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n` +
-          `GRAMMAR:\n${grammar.map((t, i) => `${i + 1}. ${t}`).join("\n")}` +
+          `PROSE & POETRY:\n${prose_poetry.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}\n\n` +
+          `GRAMMAR:\n${grammar.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}` +
           `\n\nNOTE FOR AI: If any lesson or grammar topic from Class 9 Hindi ` +
           `(Sanchayan/Sparsh) is missing above, retrieve it from the official ` +
           `NCERT syllabus and include it.`,
       };
     }
 
-    // Class 9 subject not matched locally — AI fetches entirely
     return {
       subjectName: subjectRequest,
       chapterList:
@@ -197,7 +248,7 @@ function getChaptersForSubject(
     };
   }
 
-  // ── Classes 6–8, 10–12: AI fetches entirely from NCERT ────
+  // Classes 6–8, 10–12: AI fetches entirely from NCERT
   const subjectLabel =
     /science|physics|chemistry|biology/.test(req) ? "Science" :
     /math/.test(req) ? "Mathematics" :
@@ -227,8 +278,11 @@ function getChaptersForSubject(
 // GENERAL HELPERS
 // ─────────────────────────────────────────────────────────────
 
-function getKey(student?: StudentContext) {
-  return `${student?.name || "anon"}_${student?.class || "x"}`;
+function getKey(student?: StudentContext): string {
+  // ✅ FIX #2: prefer client-provided sessionId to avoid name collisions
+  if (student?.sessionId) return student.sessionId;
+  // Fallback: name + class (still better than pure anon)
+  return `${student?.name || "anon"}_${student?.class || "x"}_${Date.now()}`;
 }
 
 function isGreeting(text: string) {
@@ -241,12 +295,6 @@ function isSubmit(text: string) {
 
 function isStart(text: string) {
   return text.trim().toLowerCase() === "start";
-}
-
-function looksLikeSubject(text: string) {
-  return /math|science|history|geo|civics|english|hindi|chapter|physics|chemistry|biology|sst|social|econ/i.test(
-    text
-  );
 }
 
 function formatDuration(ms: number): string {
@@ -268,6 +316,8 @@ function parseScore(text: string): { obtained: number; total: number } {
   if (match) {
     return { obtained: parseInt(match[1]), total: parseInt(match[2]) };
   }
+  // ✅ FIX #7: warn when parseScore fails so Supabase doesn't silently store 0/0
+  console.warn("[parseScore] Could not extract score from evaluation text.");
   return { obtained: 0, total: 0 };
 }
 
@@ -278,18 +328,28 @@ function parseTotalMarksFromPaper(paper: string): number {
   return match ? parseInt(match[1]) : 80;
 }
 
+// ✅ FIX #5: sanitise uploaded text before sending to AI
+function sanitiseUpload(raw: string): string {
+  return raw
+    .slice(0, 8000) // hard length cap — prevents token abuse
+    .replace(/system\s*:/gi, "")
+    .replace(/ignore\s+previous\s+instructions?/gi, "")
+    .replace(/you\s+are\s+now/gi, "")
+    .replace(/disregard\s+all/gi, "")
+    .trim();
+}
+
 // ─────────────────────────────────────────────────────────────
-// NEW HELPER: Extract and parse syllabus from uploaded text
-// Called when a student uploads a syllabus PDF/image in IDLE state
-// Returns { subjectName, chapterList } shaped the same as
-// getChaptersForSubject() so downstream paper-generation is identical.
+// SYLLABUS EXTRACTION FROM UPLOAD
 // ─────────────────────────────────────────────────────────────
+
 async function parseSyllabusFromUpload(
   uploadedText: string,
   cls: string,
   board: string
 ): Promise<{ subjectName: string; chapterList: string; raw: string }> {
-  // Ask AI to extract a clean, structured syllabus from the raw OCR/extracted text.
+  const safe = sanitiseUpload(uploadedText); // ✅ FIX #5 applied
+
   const extractionPrompt = `
 You are a syllabus extraction assistant.
 The following text was extracted from a student's uploaded syllabus document (PDF or image).
@@ -313,19 +373,17 @@ Do NOT include any commentary or explanation — output the structured list only
 
 RAW EXTRACTED TEXT FROM UPLOAD:
 ──────────────────────────────────────────
-${uploadedText}
+${safe}
 ──────────────────────────────────────────
 `.trim();
 
+  // ✅ FIX #6: don't pass uploadedText again as user message — it's already in the prompt
   const extracted = await callAI(extractionPrompt, [
-    { role: "user", content: uploadedText },
+    { role: "user", content: "Extract the syllabus as instructed above." },
   ]);
 
-  // Parse subject name from AI output
   const subjectMatch = extracted.match(/^SUBJECT:\s*(.+)$/im);
-  const subjectName = subjectMatch
-    ? subjectMatch[1].trim()
-    : "Custom Subject";
+  const subjectName = subjectMatch ? subjectMatch[1].trim() : "Custom Subject";
 
   return {
     subjectName,
@@ -341,13 +399,19 @@ ${uploadedText}
 
 // ─────────────────────────────────────────────────────────────
 // CORE AI CALLER
+// ✅ FIX #4: 30s timeout + proper AbortController cleanup
 // ─────────────────────────────────────────────────────────────
+
 async function callAI(
   sysPrompt: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  timeoutMs = 30_000
 ): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return "AI error: missing API key.";
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(
@@ -355,6 +419,7 @@ async function callAI(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: sysPrompt }] },
           contents: messages
@@ -366,18 +431,44 @@ async function callAI(
         }),
       }
     );
+    clearTimeout(timer);
     const data = await res.json();
     return (
       data?.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to respond."
     );
-  } catch {
-    return "AI server error.";
+  } catch (e) {
+    clearTimeout(timer);
+    if (e instanceof Error && e.name === "AbortError") {
+      return "Request timed out. Please try again in a moment.";
+    }
+    return "AI server error. Please try again.";
   }
+}
+
+// Evaluation calls can take longer — 90s timeout
+async function callAIForEvaluation(
+  sysPrompt: string,
+  messages: ChatMessage[]
+): Promise<string> {
+  return callAI(sysPrompt, messages, 90_000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// EXAM TIME LIMIT
+// ✅ FIX #3: server enforces 3-hour limit
+// ─────────────────────────────────────────────────────────────
+
+const MAX_EXAM_MS = 3 * 60 * 60 * 1000; // 3 hours
+
+function isOverTime(startedAt?: number): boolean {
+  if (!startedAt) return false;
+  return Date.now() - startedAt > MAX_EXAM_MS;
 }
 
 // ─────────────────────────────────────────────────────────────
 // MAIN POST HANDLER
 // ─────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -397,13 +488,13 @@ export async function POST(req: NextRequest) {
       history.filter((m) => m.role === "user").pop()?.content ||
       "";
 
-    // OCR/extracted text from any image or PDF uploaded by student
-    const uploadedText: string = body?.uploadedText || "";
+    // ✅ FIX #5: sanitise all uploaded text immediately on entry
+    const uploadedText: string = sanitiseUpload(body?.uploadedText || "");
 
     const lower = message.toLowerCase().trim();
-    const key = getKey(student);
 
-    // Conversation context for teacher/oral/practice/revision
+    // ✅ FIX #8 comment: context window capped at 14 messages (~7 turns)
+    // to stay within Gemini token budget for teacher/oral/practice/revision modes
     const conversation: ChatMessage[] = [
       ...history.slice(-14),
       { role: "user", content: message },
@@ -411,7 +502,6 @@ export async function POST(req: NextRequest) {
 
     // ═══════════════════════════════════════════════════════════
     // TEACHER MODE
-    // Full adaptive teaching — prompt loaded from prompts.ts
     // ═══════════════════════════════════════════════════════════
     if (mode === "teacher") {
       if (isGreeting(lower) && history.length === 0) {
@@ -426,24 +516,30 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════
     // EXAMINER MODE
     //
+    // ALL session state lives in Supabase `exam_sessions` table.
+    // No in-memory Map — safe across serverless cold starts.
+    //
     // FLOW:
-    //   IDLE    → student specifies subject OR uploads syllabus PDF/image
-    //             • Upload detected → AI extracts syllabus, confirms to student,
-    //               moves to READY with syllabusFromUpload stored
-    //             • Text subject → moves to READY as before
+    //   IDLE    → student specifies subject OR uploads syllabus
     //   READY   → student types "start" → full paper shown, timer begins
-    //             • If syllabusFromUpload present → paper based on that
-    //             • Else → paper based on NCERT chapters (getChaptersForSubject)
-    //   IN_EXAM → every message/upload appended to answerLog silently
-    //   SUBMIT  → all collected answers evaluated together in one shot
+    //   IN_EXAM → every message/upload appended to answer_log in DB
+    //   SUBMIT  → all answers evaluated, result saved, session deleted
     // ═══════════════════════════════════════════════════════════
     if (mode === "examiner") {
-      const session: ExamSession = examSessions.get(key) || {
+      // ✅ FIX #2: use sessionId-based key, not name-based
+      const key = getKey(student);
+
+      // ── Load session from Supabase ─────────────────────────
+      const session: ExamSession = (await getSession(key)) || {
+        session_key: key,
         status: "IDLE",
-        answerLog: [],
+        answer_log: [],
+        student_name: name,
+        student_class: cls,
+        student_board: board,
       };
 
-      // ── Greeting ────────────────────────────────────────────
+      // ── Greeting ───────────────────────────────────────────
       if (isGreeting(lower) && session.status === "IDLE") {
         return NextResponse.json({
           reply:
@@ -455,14 +551,17 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // ── SUBMIT → full evaluation ─────────────────────────────
+      // ── SUBMIT → full evaluation ───────────────────────────
       if (isSubmit(lower) && session.status === "IN_EXAM") {
         const endTime = Date.now();
-        const timeTaken = session.startedAt
-          ? formatDuration(endTime - session.startedAt)
+
+        // ✅ FIX #3: flag overtime submissions
+        const overtime = isOverTime(session.started_at);
+        const timeTaken = session.started_at
+          ? formatDuration(endTime - session.started_at)
           : "Unknown";
 
-        if (session.answerLog.length === 0) {
+        if (session.answer_log.length === 0) {
           return NextResponse.json({
             reply:
               `⚠️ No answers were recorded, ${name}. ` +
@@ -470,18 +569,18 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        const fullAnswerTranscript = session.answerLog
+        const fullAnswerTranscript = session.answer_log
           .map((entry, i) => `[Answer Entry ${i + 1}]\n${entry}`)
           .join("\n\n────────────────────────────────\n\n");
 
-        const totalMarks = session.totalMarksOnPaper || 80;
+        const totalMarks = session.total_marks || 80;
 
         const evaluationPrompt = `
 You are an official CBSE Board Examiner evaluating a Class ${cls} student named ${name}.
 Subject: ${session.subject || "General"}
 Board: ${board}
 Maximum Marks on Paper: ${totalMarks}
-Time Taken by Student: ${timeTaken}
+Time Taken by Student: ${timeTaken}${overtime ? " ⚠️ SUBMITTED AFTER 3-HOUR LIMIT" : ""}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OFFICIAL CBSE MARKING SCHEME — FOLLOW EXACTLY:
@@ -524,6 +623,7 @@ GENERAL RULES (all sections):
 • Cross-reference carefully — student may have answered out of order.
 • Be consistent — same quality of answer always gets same marks.
 • All factual claims must be accurate for the subject and class level to receive marks.
+${overtime ? `\n• ⚠️ NOTE: Student submitted after the 3-hour time limit. Mention this clearly in Examiner's Remarks.` : ""}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EVALUATION REPORT FORMAT — FOLLOW THIS EXACTLY:
@@ -572,7 +672,7 @@ Section C             : [X] / 30
 ─────────────────────────────────────────
 Total Marks Obtained  : [X] / ${totalMarks}
 Percentage            : [X.X]%
-Time Taken            : ${timeTaken}
+Time Taken            : ${timeTaken}${overtime ? " ⚠️ Over time limit" : ""}
 Questions Attempted   : [X] of 36
 ─────────────────────────────────────────
 CBSE Grade:
@@ -593,13 +693,14 @@ Weaknesses  : [specific chapters to focus on]
 Study Tip   : [one actionable improvement tip based on the syllabus used]
         `.trim();
 
-        const evaluation = await callAI(evaluationPrompt, [
+        // ✅ FIX #4: longer timeout for evaluation (90s)
+        const evaluation = await callAIForEvaluation(evaluationPrompt, [
           {
             role: "user",
             content:
-              `QUESTION PAPER:\n${session.questionPaper}\n\n` +
+              `QUESTION PAPER:\n${session.question_paper}\n\n` +
               `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `STUDENT'S COMPLETE ANSWER TRANSCRIPT (${session.answerLog.length} entries):\n` +
+              `STUDENT'S COMPLETE ANSWER TRANSCRIPT (${session.answer_log.length} entries):\n` +
               `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
               fullAnswerTranscript,
           },
@@ -609,7 +710,7 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         const percentage =
           total > 0 ? Math.round((obtained / total) * 100) : 0;
 
-        // Save to Supabase — silent fail so evaluation always returns
+        // ✅ Save result to Supabase — awaited with error handling
         try {
           await supabase.from("exam_attempts").insert({
             student_name: name,
@@ -617,52 +718,68 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
             subject: session.subject || "General",
             percentage,
             marks_obtained: obtained,
-            total_marks: total,
+            total_marks: total > 0 ? total : totalMarks,
             time_taken: timeTaken,
+            overtime,
+            evaluation_text: evaluation,   // ✅ full report saved for recovery
             created_at: new Date().toISOString(),
           });
-        } catch {
-          // Silent
+        } catch (dbErr) {
+          console.error("Failed to save exam_attempt:", dbErr);
+          // Don't block — student still gets their evaluation
         }
 
-        examSessions.delete(key);
+        // ✅ Clean up session from Supabase after successful evaluation
+        await deleteSession(key);
 
         return NextResponse.json({
           reply: evaluation,
           examEnded: true,
           subject: session.subject,
           marksObtained: obtained,
-          totalMarks: total,
+          totalMarks: total > 0 ? total : totalMarks,
           percentage,
           timeTaken,
+          overtime,
         });
       }
 
-      // ── IN EXAM: silently collect every message/upload ───────
+      // ── ✅ FIX #3: auto-expire session if 3h elapsed ──────
+      if (session.status === "IN_EXAM" && isOverTime(session.started_at)) {
+        return NextResponse.json({
+          reply:
+            `⏰ **Time's up, ${name}!** Your 3-hour exam window has closed.\n\n` +
+            `Type **submit** now to get your evaluation based on answers recorded so far.\n` +
+            `Any further answers added after time limit will be flagged in the evaluation.`,
+          overtime: true,
+        });
+      }
+
+      // ── IN EXAM: silently collect every message/upload ────
       if (session.status === "IN_EXAM") {
         const parts: string[] = [];
 
-        if (message && message.trim() && !isSubmit(lower)) {
+        if (message.trim() && !isSubmit(lower)) {
           parts.push(message.trim());
         }
-        if (uploadedText && uploadedText.trim()) {
-          parts.push(
-            `[UPLOADED ANSWER — IMAGE/PDF]\n${uploadedText.trim()}`
-          );
+        if (uploadedText) {
+          // ✅ SYNC FIX: marker matches what ChatUI expects to detect uploads
+          parts.push(`[UPLOADED ANSWER — IMAGE/PDF]\n${uploadedText}`);
         }
 
         if (parts.length > 0) {
-          session.answerLog.push(parts.join("\n\n"));
-          examSessions.set(key, session);
+          session.answer_log.push(parts.join("\n\n"));
+          // ✅ FIX #1: persist every answer immediately to Supabase
+          await saveSession(session);
         }
 
-        const elapsed = session.startedAt
-          ? formatDuration(Date.now() - session.startedAt)
+        const elapsed = session.started_at
+          ? formatDuration(Date.now() - session.started_at)
           : "—";
 
         return NextResponse.json({
           reply:
-            `✅ **Answer recorded** (Entry ${session.answerLog.length})\n` +
+            `✅ **Answer recorded** (Entry ${session.answer_log.length})\n` +
             `⏱️ Time elapsed: **${elapsed}**\n\n` +
             `Continue answering. You can:\n` +
             `• Type more answers directly\n` +
@@ -672,26 +789,27 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         });
       }
 
-      // ════════════════════════════════════════════════════════
-      // ── IDLE: check for syllabus upload FIRST, then text ───
-      // ════════════════════════════════════════════════════════
+      // ── IDLE: check for syllabus upload FIRST, then text ──
       if (session.status === "IDLE" && !isGreeting(lower)) {
 
-        // ── CASE 1: Student uploaded a syllabus PDF/image ─────
-        // Detected when uploadedText is present and it doesn't
-        // look like an answer (i.e. exam hasn't started yet).
-        if (uploadedText && uploadedText.trim().length > 30) {
-          // Extract and structure the syllabus from the upload
+        // CASE 1: Student uploaded a syllabus PDF/image
+        if (uploadedText.length > 30) {
           const { subjectName, chapterList, raw } =
             await parseSyllabusFromUpload(uploadedText, cls, board);
 
-          examSessions.set(key, {
+          const newSession: ExamSession = {
+            session_key: key,
             status: "READY",
-            subjectRequest: subjectName,
+            subject_request: subjectName,
             subject: subjectName,
-            answerLog: [],
-            syllabusFromUpload: chapterList, // ← store custom syllabus
-          });
+            answer_log: [],
+            syllabus_from_upload: chapterList,
+            student_name: name,
+            student_class: cls,
+            student_board: board,
+          };
+          // ✅ FIX #1: persist READY state immediately
+          await saveSession(newSession);
 
           return NextResponse.json({
             reply:
@@ -706,15 +824,21 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
           });
         }
 
-        // ── CASE 2: Student typed a subject name ──────────────
+        // CASE 2: Student typed a subject name
         const { subjectName } = getChaptersForSubject(message, cls);
-        examSessions.set(key, {
+        const newSession: ExamSession = {
+          session_key: key,
           status: "READY",
-          subjectRequest: message,
+          subject_request: message,
           subject: subjectName,
-          answerLog: [],
-          // syllabusFromUpload intentionally absent → use NCERT
-        });
+          answer_log: [],
+          student_name: name,
+          student_class: cls,
+          student_board: board,
+        };
+        // ✅ FIX #1: persist READY state immediately
+        await saveSession(newSession);
+
         return NextResponse.json({
           reply:
             `📚 Got it! I'll prepare a **strict CBSE Board question paper** for:\n` +
@@ -727,29 +851,26 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         });
       }
 
-      // ── START: generate full paper ───────────────────────────
+      // ── START: generate full paper ─────────────────────────
       if (isStart(lower) && session.status === "READY") {
 
-        // ── Decide chapter source: custom upload OR NCERT ──────
         let subjectName: string;
         let chapterList: string;
 
-        if (session.syllabusFromUpload) {
-          // Use the syllabus the student uploaded
+        if (session.syllabus_from_upload) {
           subjectName = session.subject || "Custom Subject";
-          chapterList = session.syllabusFromUpload;
+          chapterList = session.syllabus_from_upload;
         } else {
-          // Fall back to NCERT syllabus lookup
           const resolved = getChaptersForSubject(
-            session.subjectRequest || "",
+            session.subject_request || "",
             cls
           );
           subjectName = resolved.subjectName;
           chapterList = resolved.chapterList;
         }
 
-        const isMath = /math/i.test(session.subjectRequest || "");
-        const isSST = /sst|social/i.test(session.subjectRequest || "");
+        const isMath = /math/i.test(session.subject_request || "");
+        const isSST = /sst|social/i.test(session.subject_request || "");
 
         const mathSections = `
 SECTION A — Multiple Choice Questions [20 Marks]
@@ -865,6 +986,7 @@ MANDATORY QUALITY & BALANCE RULES:
 • For SST: spread questions proportionally across History, Geography, Civics, Economics
         `.trim();
 
+        // ✅ FIX #4: paper generation also uses timeout
         const paper = await callAI(paperPrompt, [
           {
             role: "user",
@@ -875,16 +997,23 @@ MANDATORY QUALITY & BALANCE RULES:
         const totalMarksOnPaper = parseTotalMarksFromPaper(paper);
         const startTime = Date.now();
 
-        examSessions.set(key, {
+        const activeSession: ExamSession = {
+          session_key: key,
           status: "IN_EXAM",
-          subjectRequest: session.subjectRequest,
+          subject_request: session.subject_request,
           subject: subjectName,
-          questionPaper: paper,
-          answerLog: [],
-          startedAt: startTime,
-          totalMarksOnPaper,
-          syllabusFromUpload: session.syllabusFromUpload, // carry forward for reference
-        });
+          question_paper: paper,
+          answer_log: [],
+          started_at: startTime,
+          total_marks: totalMarksOnPaper,
+          syllabus_from_upload: session.syllabus_from_upload,
+          student_name: name,
+          student_class: cls,
+          student_board: board,
+        };
+
+        // ✅ FIX #1: persist IN_EXAM state with full question paper to Supabase
+        await saveSession(activeSession);
 
         return NextResponse.json({
           reply:
@@ -903,7 +1032,7 @@ MANDATORY QUALITY & BALANCE RULES:
         });
       }
 
-      // Fallback
+      // Fallback for examiner
       return NextResponse.json({
         reply:
           `Please tell me the **subject** you want to be tested on, ${name}.\n` +
@@ -969,9 +1098,11 @@ RULES:
     }
 
     return NextResponse.json({ reply: "Invalid mode." });
-  } catch {
+
+  } catch (err) {
+    console.error("[route.ts] Unhandled error:", err);
     return NextResponse.json(
-      { reply: "Server error. Try again." },
+      { reply: "Server error. Please try again." },
       { status: 500 }
     );
   }
