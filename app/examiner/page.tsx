@@ -23,16 +23,18 @@ type ExamAttempt = {
 };
 
 export default function ExaminerPage() {
-  const [messages, setMessages]         = useState<Message[]>([]);
-  const [examStarted, setExamStarted]   = useState(false);
+  const [messages, setMessages]             = useState<Message[]>([]);
+  const [examStarted, setExamStarted]       = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [isLoading, setIsLoading]       = useState(false);
+  const [isLoading, setIsLoading]           = useState(false);
 
-  const timerRef            = useRef<NodeJS.Timeout | null>(null);
-  const startTimestampRef   = useRef<number | null>(null);
-  const chatContainerRef    = useRef<HTMLDivElement | null>(null);
-  const elapsedRef          = useRef(0); // stable ref for saveExamAttempt
-  const sessionIdRef        = useRef<string>(crypto.randomUUID()); // stable for entire session
+  const timerRef          = useRef<NodeJS.Timeout | null>(null);
+  const startTimestampRef = useRef<number | null>(null);
+  const chatContainerRef  = useRef<HTMLDivElement | null>(null);
+  const elapsedRef        = useRef(0);
+  const sessionIdRef      = useRef<string>(crypto.randomUUID()); // stable for entire page session
+  const greetingFiredRef  = useRef(false);                       // prevents double greeting on re-render
+  const isSendingRef      = useRef(false);                       // prevents concurrent API calls
 
   // ── Auto-scroll ──────────────────────────────────────────────
   useEffect(() => {
@@ -42,9 +44,11 @@ export default function ExaminerPage() {
     });
   }, [messages]);
 
-  // ── FIX 1: Fire opening greeting on mount ───────────────────
+  // ── Fire opening greeting exactly once on mount ──────────────
   useEffect(() => {
-    sendToAPI("", undefined, undefined, true); // isGreeting = true
+    if (greetingFiredRef.current) return;
+    greetingFiredRef.current = true;
+    sendToAPI("", undefined, undefined, true);
   }, []);
 
   // ── Timer ────────────────────────────────────────────────────
@@ -118,6 +122,8 @@ export default function ExaminerPage() {
     uploadType?: "syllabus" | "answer",
     isGreeting = false
   ) {
+    if (isSendingRef.current) return;
+    isSendingRef.current = true;
     setIsLoading(true);
 
     let student: any = null;
@@ -126,88 +132,82 @@ export default function ExaminerPage() {
       if (stored) student = JSON.parse(stored);
     } catch {}
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "examiner",
-        message: isGreeting ? "hi" : text,
-        uploadedText: uploadedText || "",
-        uploadType: uploadType || null,
-        history: isGreeting ? [] : messages
-          // exclude PDF download card messages from history sent to server
-          // and strip display-only upload labels
-          .filter((m) => !m.content.startsWith(PDF_MARKER))
-          .map((m) => ({
-            role: m.role,
-            content: m.content
-              .replace(/\n\n📋 \[Syllabus uploaded\]/g, "")
-              .replace(/\n\n📝 \[Answer uploaded\]/g, "")
-              .replace(/\n\n📎 \[Uploaded document attached\]/g, "")
-              .trim(),
-          })),
-        student: {
-          ...student,
-          sessionId: sessionIdRef.current, // ← FIX: stable sessionId so server finds the same session across all requests
-        },
-      }),
-    });
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "examiner",
+          message: isGreeting ? "hi" : text,
+          uploadedText: uploadedText || "",
+          uploadType: uploadType || null,
+          history: isGreeting ? [] : messages
+            .filter((m) => !m.content.startsWith(PDF_MARKER))
+            .map((m) => ({
+              role: m.role,
+              content: m.content
+                .replace(/\n\n📋 \[Syllabus uploaded\]/g, "")
+                .replace(/\n\n📝 \[Answer uploaded\]/g, "")
+                .replace(/\n\n📎 \[Uploaded document attached\]/g, "")
+                .trim(),
+            })),
+          student: {
+            ...student,
+            sessionId: sessionIdRef.current,
+          },
+        }),
+      });
 
-    const data = await res.json();
-    const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
+      const data = await res.json();
+      const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
 
-    setIsLoading(false);
-
-    // ── Exam started → kick off timer + inject PDF download card ─
-    if (typeof data?.startTime === "number") {
-      startTimer(data.startTime);
-      if (aiReply) {
-        const paperOnly = aiReply
-          .split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0]
-          .trim();
-        // Push full paper bubble first, then the download card
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: aiReply },
-          { role: "assistant", content: `${PDF_MARKER}${paperOnly}` },
-        ]);
-        setIsLoading(false);
+      // ── Exam started → kick off timer + PDF download card ───
+      if (typeof data?.startTime === "number") {
+        startTimer(data.startTime);
+        if (aiReply) {
+          const paperOnly = aiReply
+            .split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0]
+            .trim();
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: aiReply },
+            { role: "assistant", content: `${PDF_MARKER}${paperOnly}` },
+          ]);
+        }
         return;
       }
-    }
 
-    // ── Exam ended ───────────────────────────────────────────────
-    if (data?.examEnded === true) {
-      stopTimer();
-      const timeTaken = elapsedRef.current;
-      const evaluationWithTime = aiReply + `\n\n⏱ Time Taken: ${formatTime(timeTaken)}`;
+      // ── Exam ended ─────────────────────────────────────────
+      if (data?.examEnded === true) {
+        stopTimer();
+        const timeTaken = elapsedRef.current;
+        const evaluationWithTime = aiReply + `\n\n⏱ Time Taken: ${formatTime(timeTaken)}`;
+        setMessages((prev) => [...prev, { role: "assistant", content: evaluationWithTime }]);
+        saveExamAttempt(
+          messages,
+          timeTaken,
+          data?.subject ?? "Exam",
+          data?.chapters ?? [],
+          data?.marksObtained ?? 0,
+          data?.totalMarks ?? 0
+        );
+        return;
+      }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: evaluationWithTime }]);
-
-      saveExamAttempt(
-        messages,
-        timeTaken,
-        data?.subject ?? "Exam",
-        data?.chapters ?? [],
-        data?.marksObtained ?? 0,
-        data?.totalMarks ?? 0
-      );
-      return;
-    }
-
-    if (aiReply) {
-      if (typeof data?.startTime === "number") {
-        const paperOnly = aiReply
-          .split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0]
-          .trim();
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: aiReply },
-          { role: "assistant", content: `__DOWNLOAD_PDF__::${paperOnly}` },
-        ]);
-      } else {
+      // ── Normal reply ───────────────────────────────────────
+      if (aiReply) {
         setMessages((prev) => [...prev, { role: "assistant", content: aiReply }]);
       }
+
+    } catch (err) {
+      console.error("[sendToAPI] fetch failed:", err);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "⚠️ Network error. Please check your connection and try again." },
+      ]);
+    } finally {
+      isSendingRef.current = false;
+      setIsLoading(false);
     }
   }
 
@@ -218,6 +218,7 @@ export default function ExaminerPage() {
     uploadType?: "syllabus" | "answer"
   ) {
     if (!text.trim() && !uploadedText) return;
+    if (isSendingRef.current) return;
 
     let displayContent = text.trim();
     if (uploadedText) {
@@ -229,9 +230,7 @@ export default function ExaminerPage() {
         : label;
     }
 
-    const userMessage: Message = { role: "user", content: displayContent };
-    setMessages((prev) => [...prev, userMessage]);
-
+    setMessages((prev) => [...prev, { role: "user", content: displayContent }]);
     await sendToAPI(text, uploadedText, uploadType);
   }
 
@@ -279,7 +278,6 @@ export default function ExaminerPage() {
       <div ref={chatContainerRef} style={{ flex: 1, overflowY: "auto", paddingBottom: 96 }}>
         <ChatUI messages={messages} />
 
-        {/* Loading indicator */}
         {isLoading && (
           <div style={{
             display: "flex", justifyContent: "flex-start",
@@ -303,11 +301,12 @@ export default function ExaminerPage() {
         )}
       </div>
 
-      {/* ── Input ── */}
+      {/* ── Input — disabled while any request is in-flight ── */}
       <div style={{ position: "sticky", bottom: 0, background: "#f8fafc", paddingBottom: 16 }}>
         <ChatInput
           onSend={handleSend}
           examStarted={examStarted}
+          disabled={isLoading}
         />
       </div>
     </div>

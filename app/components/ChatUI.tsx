@@ -23,11 +23,9 @@ type Props = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// SPECIAL MESSAGE MARKER
-// ExaminerPage pushes a message with this prefix into the
-// messages array. ChatUI detects it and renders a download
-// button card instead of a text bubble.
-// Format: "__DOWNLOAD_PDF__::paperContentHere"
+// PDF MARKER — exported so page.tsx can import and use it
+// ExaminerPage pushes a message with this prefix into messages.
+// ChatUI detects it and renders a download card instead of a bubble.
 // ─────────────────────────────────────────────────────────────
 export const PDF_MARKER = "__DOWNLOAD_PDF__::";
 
@@ -48,8 +46,6 @@ function splitUploadedContent(content: string) {
 
 // ─────────────────────────────────────────────────────────────
 // PDF DOWNLOAD CARD
-// Renders inline in the chat — user clicks to download.
-// No auto-download so browsers never block it.
 // ─────────────────────────────────────────────────────────────
 function PDFDownloadCard({
   paperContent,
@@ -71,9 +67,7 @@ function PDFDownloadCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: paperContent }),
       });
-
       if (!res.ok) throw new Error("PDF generation failed");
-
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
@@ -117,7 +111,6 @@ function PDFDownloadCard({
           </div>
         )}
       </div>
-
       <button
         onClick={handleDownload}
         disabled={downloading}
@@ -146,6 +139,7 @@ function PDFDownloadCard({
 // ─────────────────────────────────────────────────────────────
 function useElapsed(startTime?: number) {
   const [elapsed, setElapsed] = useState("");
+
   useEffect(() => {
     if (!startTime) return;
     function tick() {
@@ -164,6 +158,7 @@ function useElapsed(startTime?: number) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [startTime]);
+
   return elapsed;
 }
 
@@ -173,8 +168,8 @@ function useElapsed(startTime?: number) {
 export default function ChatUI({
   messages,
   isOralMode = false,
-  language = "en-IN",
-  mode = "teacher",
+  language   = "en-IN",
+  mode       = "teacher",
   examMeta,
 }: Props) {
   const lastSpokenIndexRef = useRef<number>(-1);

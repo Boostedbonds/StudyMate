@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 type Props = {
   onSend: (message: string, uploadedText?: string, uploadType?: "syllabus" | "answer") => void;
-  examStarted?: boolean; // ← tells ChatInput whether exam is live
+  examStarted?: boolean;
+  disabled?: boolean; // ← blocks all input while a request is in-flight
 };
 
 declare global {
@@ -16,16 +17,10 @@ declare global {
 
 // ─────────────────────────────────────────────────────────────
 // PDF TEXT EXTRACTION
-// Uses pdfjs-dist (already available in most Next.js projects).
-// Falls back gracefully if the lib isn't present.
 // ─────────────────────────────────────────────────────────────
 async function extractPdfText(file: File): Promise<string> {
   try {
-    // Dynamic import so the heavy PDF lib is only loaded when needed
     const pdfjsLib = await import("pdfjs-dist");
-
-    // Required: point the worker at the correct URL
-    // If you're using Next.js, copy the worker to /public or use a CDN
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
     const arrayBuffer = await file.arrayBuffer();
@@ -33,35 +28,26 @@ async function extractPdfText(file: File): Promise<string> {
 
     const pages: string[] = [];
     for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
+      const page    = await pdf.getPage(i);
       const content = await page.getTextContent();
-      const pageText = content.items
-        .map((item: any) => item.str)
-        .join(" ");
+      const pageText = content.items.map((item: any) => item.str).join(" ");
       pages.push(pageText);
     }
 
     const fullText = pages.join("\n\n").trim();
-    return fullText.length > 20
-      ? fullText
-      : ""; // return empty if extraction produced nothing useful
+    return fullText.length > 20 ? fullText : "";
   } catch {
-    // pdfjs not installed or extraction failed — return empty so
-    // caller can show a friendly message instead of fake content
     return "";
   }
 }
 
 // ─────────────────────────────────────────────────────────────
 // IMAGE → BASE64
-// Converts an image file to base64 string for server-side OCR.
-// The server (route.ts / a dedicated /api/ocr endpoint) receives
-// this and can pass it to Gemini's vision API for real extraction.
 // ─────────────────────────────────────────────────────────────
 async function imageToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string); // data:image/...;base64,...
+    const reader  = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -75,31 +61,31 @@ async function processFile(file: File): Promise<{ text: string; isImage: boolean
     const text = await extractPdfText(file);
     return { text, isImage: false };
   }
-
   if (file.type.startsWith("image/")) {
-    // Convert to base64 — route.ts / Gemini vision will do real OCR
     const base64 = await imageToBase64(file);
-    // Wrap in a clear marker so route.ts knows this is a base64 image
-    return {
-      text: `[IMAGE_BASE64]\n${base64}`,
-      isImage: true,
-    };
+    return { text: `[IMAGE_BASE64]\n${base64}`, isImage: true };
   }
-
   return { text: "", isImage: false };
 }
 
-export default function ChatInput({ onSend, examStarted = false }: Props) {
-  const [value, setValue]             = useState("");
-  const [fileNames, setFileNames]     = useState<string[]>([]);
+export default function ChatInput({
+  onSend,
+  examStarted = false,
+  disabled    = false,
+}: Props) {
+  const [value, setValue]               = useState("");
+  const [fileNames, setFileNames]       = useState<string[]>([]);
   const [uploadedText, setUploadedText] = useState<string | null>(null);
-  const [uploadType, setUploadType]   = useState<"syllabus" | "answer">("syllabus");
-  const [processing, setProcessing]   = useState(false); // ← shows while extracting PDF
-  const [listening, setListening]     = useState(false);
+  const [uploadType, setUploadType]     = useState<"syllabus" | "answer">("syllabus");
+  const [processing, setProcessing]     = useState(false);
+  const [listening, setListening]       = useState(false);
 
-  const fileInputRef  = useRef<HTMLInputElement | null>(null);
-  const textareaRef   = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef   = useRef<HTMLInputElement | null>(null);
+  const textareaRef    = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Combined "blocked" flag — true while loading OR while extracting a file
+  const isBlocked = disabled || processing;
 
   /* ── Mic setup ───────────────────────────────────────────── */
   useEffect(() => {
@@ -107,10 +93,10 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
       window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-IN";
+    const recognition        = new SpeechRecognition();
+    recognition.lang         = "en-IN";
     recognition.interimResults = false;
-    recognition.continuous = false;
+    recognition.continuous   = false;
 
     recognition.onresult = (event: any) => {
       const transcript = Array.from(event.results)
@@ -118,8 +104,7 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
         .join(" ");
       setValue((prev) => (prev ? `${prev} ${transcript}` : transcript));
     };
-
-    recognition.onend  = () => setListening(false);
+    recognition.onend   = () => setListening(false);
     recognition.onerror = () => setListening(false);
     recognitionRef.current = recognition;
   }, []);
@@ -152,8 +137,6 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
     setProcessing(true);
     setFileNames(files.map((f) => f.name));
 
-    // ── Determine upload type from exam state ─────────────────
-    // examStarted prop is the source of truth — no guessing from status
     const type: "syllabus" | "answer" = examStarted ? "answer" : "syllabus";
     setUploadType(type);
 
@@ -161,9 +144,8 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
     const combined = results
       .map((r, i) => {
         if (!r.text) {
-          // Extraction failed — tell the server honestly
-          const fileType = files[i].type.startsWith("image/") ? "image" : "PDF";
-          return `[UNREADABLE_${fileType.toUpperCase()}]\nFile: ${files[i].name}\nNote: Text could not be extracted. Please type your answer manually.`;
+          const fileType = files[i].type.startsWith("image/") ? "IMAGE" : "PDF";
+          return `[UNREADABLE_${fileType}]\nFile: ${files[i].name}\nNote: Text could not be extracted. Please type your answer manually.`;
         }
         return r.text;
       })
@@ -175,9 +157,9 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
 
   /* ── Send ────────────────────────────────────────────────── */
   function handleSend() {
+    if (isBlocked) return;                        // ← hard block: loading OR extracting
     const trimmed = value.trim();
     if (!trimmed && !uploadedText) return;
-    if (processing) return; // don't send while still extracting
 
     onSend(trimmed, uploadedText ?? undefined, uploadedText ? uploadType : undefined);
 
@@ -186,10 +168,7 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
     textareaRef.current?.blur();
   }
 
-  /* ── Upload label shown in the attachment preview ───────── */
-  const uploadLabel = uploadType === "syllabus"
-    ? "📋 Syllabus upload"
-    : "📝 Answer upload";
+  const uploadLabel = uploadType === "syllabus" ? "📋 Syllabus upload" : "📝 Answer upload";
 
   return (
     <div
@@ -214,12 +193,22 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
           display: "flex",
           flexDirection: "column",
           gap: 6,
+          // Visual dimming while blocked so student knows to wait
+          opacity: disabled ? 0.6 : 1,
+          transition: "opacity 0.2s",
         }}
       >
         {/* ── Processing indicator ── */}
         {processing && (
           <div style={{ fontSize: 13, color: "#2563eb", paddingLeft: 6 }}>
             ⏳ Extracting content from file…
+          </div>
+        )}
+
+        {/* ── Loading indicator (request in-flight) ── */}
+        {disabled && !processing && (
+          <div style={{ fontSize: 13, color: "#64748b", paddingLeft: 6 }}>
+            ⏳ Waiting for response…
           </div>
         )}
 
@@ -235,7 +224,6 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
               paddingLeft: 6,
             }}
           >
-            {/* Upload type badge */}
             <div style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               background: uploadType === "syllabus" ? "#eff6ff" : "#f0fdf4",
@@ -251,7 +239,6 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
               <div key={i}>📎 {name}</div>
             ))}
 
-            {/* Warn if extraction failed */}
             {uploadedText?.includes("[UNREADABLE_") && (
               <div style={{ fontSize: 12, color: "#ea580c", marginTop: 2 }}>
                 ⚠️ Could not extract text from this file. You can still send it — type your answer manually too.
@@ -260,14 +247,12 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
 
             <button
               onClick={clearAttachment}
+              disabled={isBlocked}
               style={{
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: 14,
-                color: "#ef4444",
-                alignSelf: "flex-start",
-                padding: 0,
+                border: "none", background: "transparent",
+                cursor: isBlocked ? "not-allowed" : "pointer",
+                fontSize: 14, color: "#ef4444",
+                alignSelf: "flex-start", padding: 0,
               }}
               title="Remove attachments"
             >
@@ -285,19 +270,18 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
             accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
             onChange={handleFileChange}
             style={{ display: "none" }}
+            disabled={isBlocked}
           />
-
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !isBlocked && fileInputRef.current?.click()}
+            disabled={isBlocked}
             style={{
-              width: 40,
-              height: 40,
+              width: 40, height: 40,
               borderRadius: 10,
-              background: "#e2e8f0",
-              border: "none",
-              fontSize: 22,
-              cursor: "pointer",
+              background: isBlocked ? "#f1f5f9" : "#e2e8f0",
+              border: "none", fontSize: 22,
+              cursor: isBlocked ? "not-allowed" : "pointer",
               flexShrink: 0,
             }}
             title={examStarted ? "Upload answer (PDF or image)" : "Upload syllabus (PDF or image)"}
@@ -309,16 +293,16 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
           <button
             type="button"
             onClick={toggleMic}
+            disabled={isBlocked}
             title={listening ? "Stop listening" : "Start speaking"}
             style={{
-              width: 40,
-              height: 40,
+              width: 40, height: 40,
               borderRadius: "50%",
               border: "none",
               background: listening ? "#dc2626" : "#e5e7eb",
               color: listening ? "#ffffff" : "#0f172a",
               fontSize: 18,
-              cursor: "pointer",
+              cursor: isBlocked ? "not-allowed" : "pointer",
               flexShrink: 0,
             }}
           >
@@ -330,8 +314,9 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
             ref={textareaRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Type or speak…"
+            placeholder={disabled ? "Waiting…" : "Type or speak…"}
             rows={1}
+            disabled={isBlocked}
             style={{
               flex: 1,
               resize: "none",
@@ -341,13 +326,14 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
               lineHeight: "1.5",
               padding: "12px 14px",
               borderRadius: 12,
-              background: "#f8fafc",
+              background: isBlocked ? "#f1f5f9" : "#f8fafc",
               minHeight: 44,
+              cursor: isBlocked ? "not-allowed" : "text",
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSend();
+                handleSend(); // isBlocked check is inside handleSend
               }
             }}
           />
@@ -355,17 +341,18 @@ export default function ChatInput({ onSend, examStarted = false }: Props) {
           {/* ➤ Send */}
           <button
             onClick={handleSend}
-            disabled={processing}
+            disabled={isBlocked}
             style={{
-              background: processing ? "#94a3b8" : "#38bdf8",
+              background: isBlocked ? "#94a3b8" : "#38bdf8",
               color: "white",
               border: "none",
               borderRadius: 12,
               padding: "10px 18px",
               fontSize: 15,
               fontWeight: 600,
-              cursor: processing ? "not-allowed" : "pointer",
+              cursor: isBlocked ? "not-allowed" : "pointer",
               flexShrink: 0,
+              transition: "background 0.2s",
             }}
           >
             Send
