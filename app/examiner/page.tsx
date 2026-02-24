@@ -44,6 +44,7 @@ export default function ExaminerPage() {
     if (timerRef.current) return;
     startTimestampRef.current = serverStartTime;
     setExamStarted(true);
+
     timerRef.current = setInterval(() => {
       if (startTimestampRef.current) {
         const diff = Math.floor(
@@ -111,11 +112,8 @@ export default function ExaminerPage() {
   }
 
   async function handleSend(text: string, uploadedText?: string) {
-    // Allow send if there's either typed text OR an upload
     if (!text.trim() && !uploadedText) return;
 
-    // ── Build what shows in the chat bubble for the user ──────
-    // Show typed text; if there's an upload, note it clearly.
     let displayContent = text.trim();
     if (uploadedText) {
       displayContent = displayContent
@@ -137,22 +135,19 @@ export default function ExaminerPage() {
       if (stored) student = JSON.parse(stored);
     } catch {}
 
-    // ── Build history (everything except the message just sent) ─
     const historyToSend = updatedMessages
       .slice(0, -1)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    // ── FIX: send message and uploadedText as SEPARATE fields ───
-    // Backend reads body.message and body.uploadedText independently.
-    // Merging them into one string breaks syllabus upload detection
-    // and answer sheet recording on the backend.
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         mode: "examiner",
-        message: text.trim(),           // ✅ typed text only
-        uploadedText: uploadedText || "", // ✅ OCR/extracted text as its own field
+        message: text.trim(),
+        uploadedText: uploadedText || "",
         history: historyToSend,
         student,
       }),
@@ -162,14 +157,13 @@ export default function ExaminerPage() {
     const aiReply: string =
       typeof data?.reply === "string" ? data.reply : "";
 
-    // ── Timer: start when backend confirms exam has begun ───────
     if (typeof data?.startTime === "number") {
       startTimer(data.startTime);
     }
 
-    // ── Exam ended: stop timer, save attempt ───────────────────
     if (data?.examEnded === true) {
       stopTimer();
+
       const usedSeconds = elapsedSeconds;
       const subject = data?.subject ?? "Exam";
       const chapters = data?.chapters ?? [];
@@ -192,6 +186,7 @@ export default function ExaminerPage() {
         marksObtained,
         totalMarks
       );
+
       return;
     }
 
@@ -200,6 +195,35 @@ export default function ExaminerPage() {
         ...updatedMessages,
         { role: "assistant", content: aiReply },
       ]);
+
+      // PDF trigger (safe)
+      if (text?.toLowerCase().includes("pdf")) {
+        try {
+          const pdfRes = await fetch("/api/generate-pdf", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              content: aiReply,
+            }),
+          });
+
+          if (pdfRes.ok) {
+            const blob = await pdfRes.blob();
+            const url = window.URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "shauri-exam-paper.pdf";
+            a.click();
+
+            window.URL.revokeObjectURL(url);
+          }
+        } catch (err) {
+          console.error("PDF generation failed:", err);
+        }
+      }
     }
   }
 
@@ -248,7 +272,9 @@ export default function ExaminerPage() {
         </div>
       )}
 
-      <h1 style={{ textAlign: "center", marginBottom: 16 }}>Examiner Mode</h1>
+      <h1 style={{ textAlign: "center", marginBottom: 16 }}>
+        Examiner Mode
+      </h1>
 
       <div
         ref={chatContainerRef}
@@ -265,7 +291,7 @@ export default function ExaminerPage() {
           paddingBottom: 16,
         }}
       >
-        <ChatInput onSend={handleSend} examStarted={!!startTime} />
+        <ChatInput onSend={handleSend} examStarted={examStarted} />
       </div>
     </div>
   );
