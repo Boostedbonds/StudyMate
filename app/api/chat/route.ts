@@ -16,7 +16,7 @@ type StudentContext = {
   name?: string;
   class?: string;
   board?: string;
-  sessionId?: string; // ✅ FIX #2: unique session ID per student, generated client-side
+  sessionId?: string;
 };
 
 // Mirrors the `exam_sessions` table in Supabase:
@@ -37,7 +37,7 @@ type StudentContext = {
 // );
 type ExamSession = {
   session_key: string;
-  status: "IDLE" | "READY" | "IN_EXAM";
+  status: "IDLE" | "READY" | "IN_EXAM" | "FAILED";
   subject_request?: string;
   subject?: string;
   question_paper?: string;
@@ -51,6 +51,26 @@ type ExamSession = {
 };
 
 type ChapterEntry = { number: number; name: string };
+
+// ─────────────────────────────────────────────────────────────
+// INPUT VALIDATION
+// Allowlists for board and class — prevents injection into prompts
+// ─────────────────────────────────────────────────────────────
+
+const VALID_BOARDS = ["CBSE", "ICSE", "IB"];
+const MIN_CLASS    = 6;
+const MAX_CLASS    = 12;
+
+function sanitiseBoard(raw: string): string {
+  const upper = (raw || "").toUpperCase().trim();
+  return VALID_BOARDS.includes(upper) ? upper : "CBSE";
+}
+
+function sanitiseClass(raw: string): string {
+  const n = parseInt(raw);
+  if (isNaN(n)) return String(syllabus.class);
+  return String(Math.min(Math.max(n, MIN_CLASS), MAX_CLASS));
+}
 
 // ─────────────────────────────────────────────────────────────
 // SUPABASE SESSION HELPERS
@@ -84,7 +104,6 @@ async function saveSession(session: ExamSession): Promise<void> {
       { onConflict: "session_key" }
     );
   } catch {
-    // Log but never throw — exam must continue even if a single save glitches
     console.error("saveSession failed for key:", session.session_key);
   }
 }
@@ -107,7 +126,7 @@ function getChaptersForSubject(
   subjectRequest: string,
   studentClass: string
 ): { subjectName: string; chapterList: string } {
-  const req = subjectRequest.toLowerCase();
+  const req      = subjectRequest.toLowerCase();
   const classNum = parseInt(studentClass) || 9;
 
   if (classNum === 9) {
@@ -251,14 +270,14 @@ function getChaptersForSubject(
   // Classes 6–8, 10–12: AI fetches entirely from NCERT
   const subjectLabel =
     /science|physics|chemistry|biology/.test(req) ? "Science" :
-    /math/.test(req) ? "Mathematics" :
-    /history/.test(req) ? "Social Science – History" :
-    /geo|geography/.test(req) ? "Social Science – Geography" :
-    /civic|politic|democracy/.test(req) ? "Social Science – Civics/Political Science" :
-    /econ/.test(req) ? "Economics" :
-    /sst|social/.test(req) ? "Social Science (History + Geography + Civics + Economics)" :
-    /english/.test(req) ? "English" :
-    /hindi/.test(req) ? "Hindi" :
+    /math/.test(req)                               ? "Mathematics" :
+    /history/.test(req)                            ? "Social Science – History" :
+    /geo|geography/.test(req)                      ? "Social Science – Geography" :
+    /civic|politic|democracy/.test(req)            ? "Social Science – Civics/Political Science" :
+    /econ/.test(req)                               ? "Economics" :
+    /sst|social/.test(req)                         ? "Social Science (History + Geography + Civics + Economics)" :
+    /english/.test(req)                            ? "English" :
+    /hindi/.test(req)                              ? "Hindi" :
     subjectRequest;
 
   return {
@@ -279,10 +298,11 @@ function getChaptersForSubject(
 // ─────────────────────────────────────────────────────────────
 
 function getKey(student?: StudentContext): string {
-  // ✅ FIX #2: prefer client-provided sessionId to avoid name collisions
+  // sessionId is always sent by the client (stable for the entire page session).
+  // Fallback uses name+class WITHOUT Date.now() — same student always gets
+  // the same fallback key rather than a brand new session every request.
   if (student?.sessionId) return student.sessionId;
-  // Fallback: name + class (still better than pure anon)
-  return `${student?.name || "anon"}_${student?.class || "x"}_${Date.now()}`;
+  return `${student?.name || "anon"}_${student?.class || "x"}`;
 }
 
 function isGreeting(text: string) {
@@ -299,10 +319,10 @@ function isStart(text: string) {
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
+  const hours   = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (hours > 0)   return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
 }
@@ -316,7 +336,6 @@ function parseScore(text: string): { obtained: number; total: number } {
   if (match) {
     return { obtained: parseInt(match[1]), total: parseInt(match[2]) };
   }
-  // ✅ FIX #7: warn when parseScore fails so Supabase doesn't silently store 0/0
   console.warn("[parseScore] Could not extract score from evaluation text.");
   return { obtained: 0, total: 0 };
 }
@@ -325,10 +344,13 @@ function parseTotalMarksFromPaper(paper: string): number {
   const match = paper.match(
     /(?:maximum\s*marks?|total\s*marks?)\s*[:\-]\s*(\d+)/i
   );
-  return match ? parseInt(match[1]) : 80;
+  if (!match) {
+    console.warn("[parseTotalMarksFromPaper] Could not extract total marks — defaulting to 80.");
+    return 80;
+  }
+  return parseInt(match[1]);
 }
 
-// ✅ FIX #5: sanitise uploaded text before sending to AI
 function sanitiseUpload(raw: string): string {
   return raw
     .slice(0, 8000) // hard length cap — prevents token abuse
@@ -341,6 +363,7 @@ function sanitiseUpload(raw: string): string {
 
 // ─────────────────────────────────────────────────────────────
 // SYLLABUS EXTRACTION FROM UPLOAD
+// Module-level function — not nested inside POST
 // ─────────────────────────────────────────────────────────────
 
 async function parseSyllabusFromUpload(
@@ -348,7 +371,7 @@ async function parseSyllabusFromUpload(
   cls: string,
   board: string
 ): Promise<{ subjectName: string; chapterList: string; raw: string }> {
-  const safe = sanitiseUpload(uploadedText); // ✅ FIX #5 applied
+  const safe = sanitiseUpload(uploadedText);
 
   const extractionPrompt = `
 You are a syllabus extraction assistant.
@@ -377,13 +400,12 @@ ${safe}
 ──────────────────────────────────────────
 `.trim();
 
-  // ✅ FIX #6: don't pass uploadedText again as user message — it's already in the prompt
   const extracted = await callAI(extractionPrompt, [
     { role: "user", content: "Extract the syllabus as instructed above." },
   ]);
 
   const subjectMatch = extracted.match(/^SUBJECT:\s*(.+)$/im);
-  const subjectName = subjectMatch ? subjectMatch[1].trim() : "Custom Subject";
+  const subjectName  = subjectMatch ? subjectMatch[1].trim() : "Custom Subject";
 
   return {
     subjectName,
@@ -398,8 +420,61 @@ ${safe}
 }
 
 // ─────────────────────────────────────────────────────────────
+// SYLLABUS UPLOAD HANDLER
+// Module-level function — not nested inside POST
+// ─────────────────────────────────────────────────────────────
+
+async function handleSyllabusUpload(
+  uploadedText: string,
+  cls: string,
+  board: string,
+  key: string,
+  name: string,
+  currentStatus: "IDLE" | "READY"
+): Promise<NextResponse> {
+  if (!uploadedText || uploadedText.length <= 30) {
+    return NextResponse.json({
+      reply:
+        `⚠️ Could not extract readable text from your upload.\n\n` +
+        `Please try:\n` +
+        `• A clearer photo with good lighting\n` +
+        `• A text-based PDF (not a scanned image)\n` +
+        `• Typing the subject name directly instead`,
+    });
+  }
+
+  const { subjectName, chapterList, raw } =
+    await parseSyllabusFromUpload(uploadedText, cls, board);
+
+  const updatedSession: ExamSession = {
+    session_key:          key,
+    status:               "READY",
+    subject_request:      subjectName,
+    subject:              subjectName,
+    answer_log:           [],
+    syllabus_from_upload: chapterList,
+    student_name:         name,
+    student_class:        cls,
+    student_board:        board,
+  };
+  await saveSession(updatedSession);
+
+  const isOverride = currentStatus === "READY";
+  return NextResponse.json({
+    reply:
+      `📄 **Syllabus ${isOverride ? "updated" : "uploaded"} successfully!**\n\n` +
+      `**Subject detected:** ${subjectName}\n\n` +
+      `**Topics / Chapters found:**\n${raw}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `The exam paper will be generated **strictly based on the above syllabus only**.\n\n` +
+      `✅ If this looks correct, type **start** to begin your exam.\n` +
+      `✏️ If something is wrong, upload a clearer image or retype the subject name.`,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // CORE AI CALLER
-// ✅ FIX #4: 30s timeout + proper AbortController cleanup
+// 30s default timeout + proper AbortController cleanup
 // ─────────────────────────────────────────────────────────────
 
 async function callAI(
@@ -454,8 +529,7 @@ async function callAIForEvaluation(
 }
 
 // ─────────────────────────────────────────────────────────────
-// EXAM TIME LIMIT
-// ✅ FIX #3: server enforces 3-hour limit
+// EXAM TIME LIMIT — server enforces 3-hour limit
 // ─────────────────────────────────────────────────────────────
 
 const MAX_EXAM_MS = 3 * 60 * 60 * 1000; // 3 hours
@@ -473,11 +547,19 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const mode: string = body?.mode || "";
+    const mode: string            = body?.mode || "";
     const student: StudentContext = body?.student || {};
-    const name = student?.name || "Student";
-    const cls = student?.class || String(syllabus.class);
-    const board = student?.board || "CBSE";
+
+    // Personal name — empty string when unknown (never falls back to "Student")
+    const name      = student?.name?.trim() || "";
+    // greetName: "Hi there!" when name unknown — natural, never cold
+    const greetName = name || "there";
+    // callName: ", Aryan" mid-sentence, or "" when name unknown — always reads naturally
+    const callName  = name ? `, ${name}` : "";
+
+    // Validated and clamped — safe to inject directly into AI prompts
+    const cls   = sanitiseClass(student?.class || "");
+    const board = sanitiseBoard(student?.board || "");
 
     const history: ChatMessage[] = Array.isArray(body?.history)
       ? body.history
@@ -488,16 +570,15 @@ export async function POST(req: NextRequest) {
       history.filter((m) => m.role === "user").pop()?.content ||
       "";
 
-    // ✅ FIX #5: sanitise all uploaded text immediately on entry
+    // Sanitise all uploaded text immediately on entry
     const rawUploadedText: string = body?.uploadedText || "";
 
-    // ── uploadType: explicit signal from ChatInput ─────────────
+    // uploadType: explicit signal from ChatInput
     // "syllabus" = uploaded before exam started (IDLE or READY)
     // "answer"   = uploaded during exam (IN_EXAM)
-    // undefined  = old client — fall back to status-based logic
     const uploadType: "syllabus" | "answer" | undefined = body?.uploadType ?? undefined;
 
-    // ── Image OCR: if upload contains base64 image, extract via Gemini vision ──
+    // Image OCR: if upload contains base64 image, extract via Gemini vision
     let uploadedText: string = sanitiseUpload(rawUploadedText);
 
     if (rawUploadedText.includes("[IMAGE_BASE64]")) {
@@ -538,7 +619,7 @@ export async function POST(req: NextRequest) {
             }
           }
         } catch {
-          // OCR failed — uploadedText stays as empty, student gets a clear message
+          // OCR failed — uploadedText stays empty, student gets a clear message downstream
           uploadedText = "";
         }
       }
@@ -546,8 +627,7 @@ export async function POST(req: NextRequest) {
 
     const lower = message.toLowerCase().trim();
 
-    // ✅ FIX #8 comment: context window capped at 14 messages (~7 turns)
-    // to stay within Gemini token budget for teacher/oral/practice/revision modes
+    // Context window capped at 14 messages (~7 turns) to stay within Gemini token budget
     const conversation: ChatMessage[] = [
       ...history.slice(-14),
       { role: "user", content: message },
@@ -559,7 +639,7 @@ export async function POST(req: NextRequest) {
     if (mode === "teacher") {
       if (isGreeting(lower) && history.length === 0) {
         return NextResponse.json({
-          reply: `Hi ${name}! 👋 I'm Shauri, your ${board} teacher. What would you like to learn today?`,
+          reply: `Hi ${greetName}! 👋 I'm Shauri, your ${board} teacher. What would you like to learn today?`,
         });
       }
       const reply = await callAI(systemPrompt("teacher"), conversation);
@@ -577,17 +657,16 @@ export async function POST(req: NextRequest) {
     //   READY   → student types "start" → full paper shown, timer begins
     //   IN_EXAM → every message/upload appended to answer_log in DB
     //   SUBMIT  → all answers evaluated, result saved, session deleted
+    //   FAILED  → evaluation timed out; session preserved, student can retry
     // ═══════════════════════════════════════════════════════════
     if (mode === "examiner") {
-      // ✅ FIX #2: use sessionId-based key, not name-based
       const key = getKey(student);
 
-      // ── Load session from Supabase ─────────────────────────
       const session: ExamSession = (await getSession(key)) || {
-        session_key: key,
-        status: "IDLE",
-        answer_log: [],
-        student_name: name,
+        session_key:   key,
+        status:        "IDLE",
+        answer_log:    [],
+        student_name:  name,
         student_class: cls,
         student_board: board,
       };
@@ -596,7 +675,7 @@ export async function POST(req: NextRequest) {
       if (isGreeting(lower) && session.status === "IDLE") {
         return NextResponse.json({
           reply:
-            `Hello ${name}! 📋 I'm your strict CBSE Examiner.\n\n` +
+            `Hello ${greetName}! 📋 I'm your strict CBSE Examiner.\n\n` +
             `Tell me the **subject** you want to be tested on:\n` +
             `Science | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n` +
             `📎 **OR** upload your **syllabus as a PDF or image** and I'll generate a paper exactly based on it.\n\n` +
@@ -604,12 +683,35 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // ── Guard: "start" typed before subject is set ─────────
+      if (isStart(lower) && session.status === "IDLE") {
+        return NextResponse.json({
+          reply:
+            `Please tell me the **subject** you want to be tested on first${callName}.\n\n` +
+            `Options: Science | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n` +
+            `📎 Or **upload your syllabus** as a PDF or image for a custom paper.`,
+        });
+      }
+
+      // ── Recovery: FAILED session — let student retry submit ─
+      // If evaluation timed out previously, answers are still saved in DB.
+      // We reset status to IN_EXAM so the submit block below handles it normally.
+      if (session.status === "FAILED") {
+        if (isSubmit(lower)) {
+          session.status = "IN_EXAM";
+        } else {
+          return NextResponse.json({
+            reply:
+              `⚠️ Your previous evaluation hit a timeout${callName}. Your answers are all saved.\n\n` +
+              `Type **submit** to try the evaluation again.`,
+          });
+        }
+      }
+
       // ── SUBMIT → full evaluation ───────────────────────────
       if (isSubmit(lower) && session.status === "IN_EXAM") {
-        const endTime = Date.now();
-
-        // ✅ FIX #3: flag overtime submissions
-        const overtime = isOverTime(session.started_at);
+        const endTime   = Date.now();
+        const overtime  = isOverTime(session.started_at);
         const timeTaken = session.started_at
           ? formatDuration(endTime - session.started_at)
           : "Unknown";
@@ -617,7 +719,7 @@ export async function POST(req: NextRequest) {
         if (session.answer_log.length === 0) {
           return NextResponse.json({
             reply:
-              `⚠️ No answers were recorded, ${name}. ` +
+              `⚠️ No answers were recorded${callName}. ` +
               `Please type or upload your answers before submitting.`,
           });
         }
@@ -629,7 +731,7 @@ export async function POST(req: NextRequest) {
         const totalMarks = session.total_marks || 80;
 
         const evaluationPrompt = `
-You are an official CBSE Board Examiner evaluating a Class ${cls} student named ${name}.
+You are an official CBSE Board Examiner evaluating a Class ${cls} student named ${name || "the student"}.
 Subject: ${session.subject || "General"}
 Board: ${board}
 Maximum Marks on Paper: ${totalMarks}
@@ -683,7 +785,7 @@ EVALUATION REPORT FORMAT — FOLLOW THIS EXACTLY:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📋 OFFICIAL CBSE EVALUATION REPORT
-Student : ${name}
+Student : ${name || "—"}
 Class   : ${cls}
 Subject : ${session.subject}
 Board   : ${board}
@@ -741,74 +843,87 @@ Your Grade: [grade + label]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💬 EXAMINER'S REMARKS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Strengths   : [specific chapters where ${name} scored well]
+Strengths   : [specific chapters where ${name || "the student"} scored well]
 Weaknesses  : [specific chapters to focus on]
 Study Tip   : [one actionable improvement tip based on the syllabus used]
         `.trim();
 
-        // ✅ FIX #4: longer timeout for evaluation (90s)
-        const evaluation = await callAIForEvaluation(evaluationPrompt, [
-          {
-            role: "user",
-            content:
-              `QUESTION PAPER:\n${session.question_paper}\n\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `STUDENT'S COMPLETE ANSWER TRANSCRIPT (${session.answer_log.length} entries):\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              fullAnswerTranscript,
-          },
-        ]);
+        // Mark FAILED before the 90s call — if it times out or throws,
+        // the session is already persisted so the student can safely retry.
+        await saveSession({ ...session, status: "FAILED" });
+
+        let evaluation: string;
+        try {
+          evaluation = await callAIForEvaluation(evaluationPrompt, [
+            {
+              role: "user",
+              content:
+                `QUESTION PAPER:\n${session.question_paper}\n\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `STUDENT'S COMPLETE ANSWER TRANSCRIPT (${session.answer_log.length} entries):\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                fullAnswerTranscript,
+            },
+          ]);
+        } catch (evalErr) {
+          // Session stays FAILED in DB — student can type "submit" to retry
+          console.error("[evaluation] callAIForEvaluation threw:", evalErr);
+          return NextResponse.json({
+            reply:
+              `⚠️ The evaluation timed out${callName}. Your answers are all safely saved.\n\n` +
+              `Type **submit** to try again.`,
+          });
+        }
 
         const { obtained, total } = parseScore(evaluation);
-        const percentage =
-          total > 0 ? Math.round((obtained / total) * 100) : 0;
+        const percentage = total > 0 ? Math.round((obtained / total) * 100) : 0;
 
-        // ✅ Save result to Supabase — awaited with error handling
+        // Save result to Supabase
         try {
           await supabase.from("exam_attempts").insert({
-            student_name: name,
-            class: cls,
-            subject: session.subject || "General",
+            student_name:    name || null,
+            class:           cls,
+            subject:         session.subject || "General",
             percentage,
-            marks_obtained: obtained,
-            total_marks: total > 0 ? total : totalMarks,
-            time_taken: timeTaken,
+            marks_obtained:  obtained,
+            total_marks:     total > 0 ? total : totalMarks,
+            time_taken:      timeTaken,
             overtime,
-            evaluation_text: evaluation,   // ✅ full report saved for recovery
-            created_at: new Date().toISOString(),
+            evaluation_text: evaluation,
+            created_at:      new Date().toISOString(),
           });
         } catch (dbErr) {
           console.error("Failed to save exam_attempt:", dbErr);
           // Don't block — student still gets their evaluation
         }
 
-        // ✅ Clean up session from Supabase after successful evaluation
+        // Clean up session only after successful evaluation + DB save
         await deleteSession(key);
 
         return NextResponse.json({
-          reply: evaluation,
-          examEnded: true,
-          subject: session.subject,
-          marksObtained: obtained,
-          totalMarks: total > 0 ? total : totalMarks,
+          reply:          evaluation,
+          examEnded:      true,
+          subject:        session.subject,
+          marksObtained:  obtained,
+          totalMarks:     total > 0 ? total : totalMarks,
           percentage,
           timeTaken,
           overtime,
         });
       }
 
-      // ── ✅ FIX #3: auto-expire session if 3h elapsed ──────
+      // ── Auto-expire: 3h elapsed ────────────────────────────
       if (session.status === "IN_EXAM" && isOverTime(session.started_at)) {
         return NextResponse.json({
           reply:
-            `⏰ **Time's up, ${name}!** Your 3-hour exam window has closed.\n\n` +
+            `⏰ **Time's up${callName}!** Your 3-hour exam window has closed.\n\n` +
             `Type **submit** now to get your evaluation based on answers recorded so far.\n` +
             `Any further answers added after time limit will be flagged in the evaluation.`,
           overtime: true,
         });
       }
 
-      // ── IN EXAM: silently collect every message/upload ────
+      // ── IN EXAM: silently collect every message/upload ─────
       if (session.status === "IN_EXAM") {
         const parts: string[] = [];
 
@@ -817,8 +932,6 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         }
 
         if (uploadedText) {
-          // uploadType === "syllabus" during an active exam means student
-          // accidentally uploaded the wrong file — reject it clearly
           if (uploadType === "syllabus") {
             return NextResponse.json({
               reply:
@@ -828,13 +941,11 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
                 `⏱️ Timer is still running. Type **submit** when done.`,
             });
           }
-          // Marker matches what ChatUI.tsx splitUploadedContent expects
           parts.push(`[UPLOADED ANSWER — IMAGE/PDF]\n${uploadedText}`);
         }
 
         if (parts.length > 0) {
           session.answer_log.push(parts.join("\n\n"));
-          // ✅ FIX #1: persist every answer immediately to Supabase
           await saveSession(session);
         }
 
@@ -854,92 +965,38 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         });
       }
 
-      // ── SHARED HELPER: process a syllabus upload and save session ──
-      async function handleSyllabusUpload(currentStatus: "IDLE" | "READY"): Promise<NextResponse> {
-        if (!uploadedText || uploadedText.length <= 30) {
-          return NextResponse.json({
-            reply:
-              `⚠️ Could not extract readable text from your upload.\n\n` +
-              `Please try:\n` +
-              `• A clearer photo with good lighting\n` +
-              `• A text-based PDF (not a scanned image)\n` +
-              `• Typing the subject name directly instead`,
-          });
-        }
-
-        const { subjectName, chapterList, raw } =
-          await parseSyllabusFromUpload(uploadedText, cls, board);
-
-        const updatedSession: ExamSession = {
-          session_key: key,
-          status: "READY",
-          subject_request: subjectName,
-          subject: subjectName,
-          answer_log: [],
-          syllabus_from_upload: chapterList,
-          student_name: name,
-          student_class: cls,
-          student_board: board,
-        };
-        await saveSession(updatedSession);
-
-        const isOverride = currentStatus === "READY";
-        return NextResponse.json({
-          reply:
-            `📄 **Syllabus ${isOverride ? "updated" : "uploaded"} successfully!**\n\n` +
-            `**Subject detected:** ${subjectName}\n\n` +
-            `**Topics / Chapters found:**\n${raw}\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `The exam paper will be generated **strictly based on the above syllabus only**.\n\n` +
-            `✅ If this looks correct, type **start** to begin your exam.\n` +
-            `✏️ If something is wrong, upload a clearer image or retype the subject name.`,
-        });
-      }
-
-      // ── READY: syllabus upload OVERRIDE ───────────────────────
-      // Student typed a subject earlier but now wants to upload
-      // their own syllabus instead — allow the override.
+      // ── READY: syllabus upload override ───────────────────
       if (session.status === "READY" && !isStart(lower)) {
-        // uploadType === "syllabus" means ChatInput knows exam hasn't started
-        const isSyllabusUpload =
-          uploadType === "syllabus" ||
-          // Legacy fallback: no uploadType but upload arrived before exam started
-          (!uploadType && uploadedText.length > 30 && !isStart(lower));
-
-        if (isSyllabusUpload && uploadedText.length > 30) {
-          return handleSyllabusUpload("READY");
-        }
-
-        // Any other message in READY state (not "start", not a syllabus upload)
-        // — remind them what to do next
-        if (!isStart(lower)) {
-          return NextResponse.json({
-            reply:
-              `📚 Subject is set to **${session.subject}**.\n\n` +
-              `📎 Want to use your own syllabus instead? Upload a PDF or image now.\n\n` +
-              `Type **start** when ready to begin. ⏱️ Timer starts immediately.`,
-          });
-        }
-      }
-
-      // ── IDLE: syllabus upload OR subject text ──────────────────
-      if (session.status === "IDLE" && !isGreeting(lower)) {
-
-        // CASE 1: Syllabus upload
-        // uploadType === "syllabus" is explicit; fallback: any upload in IDLE
         const isSyllabusUpload =
           uploadType === "syllabus" ||
           (!uploadType && uploadedText.length > 30);
 
         if (isSyllabusUpload && uploadedText.length > 30) {
-          return handleSyllabusUpload("IDLE");
+          return handleSyllabusUpload(uploadedText, cls, board, key, name, "READY");
         }
 
-        // CASE 2: Student typed a subject name
+        return NextResponse.json({
+          reply:
+            `📚 Subject is set to **${session.subject}**.\n\n` +
+            `📎 Want to use your own syllabus instead? Upload a PDF or image now.\n\n` +
+            `Type **start** when ready to begin. ⏱️ Timer starts immediately.`,
+        });
+      }
+
+      // ── IDLE: syllabus upload OR subject text ──────────────
+      if (session.status === "IDLE" && !isGreeting(lower)) {
+        const isSyllabusUpload =
+          uploadType === "syllabus" ||
+          (!uploadType && uploadedText.length > 30);
+
+        if (isSyllabusUpload && uploadedText.length > 30) {
+          return handleSyllabusUpload(uploadedText, cls, board, key, name, "IDLE");
+        }
+
         if (!message.trim()) {
           return NextResponse.json({
             reply:
-              `Please tell me the **subject** you want to be tested on, ${name}.\n` +
+              `Please tell me the **subject** you want to be tested on${callName}.\n` +
               `Options: Science | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n` +
               `📎 Or **upload your syllabus** as a PDF or image for a custom paper.`,
           });
@@ -947,12 +1004,12 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
 
         const { subjectName } = getChaptersForSubject(message, cls);
         const newSession: ExamSession = {
-          session_key: key,
-          status: "READY",
+          session_key:   key,
+          status:        "READY",
           subject_request: message,
-          subject: subjectName,
-          answer_log: [],
-          student_name: name,
+          subject:       subjectName,
+          answer_log:    [],
+          student_name:  name,
           student_class: cls,
           student_board: board,
         };
@@ -972,7 +1029,6 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
 
       // ── START: generate full paper ─────────────────────────
       if (isStart(lower) && session.status === "READY") {
-
         let subjectName: string;
         let chapterList: string;
 
@@ -989,7 +1045,7 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         }
 
         const isMath = /math/i.test(session.subject_request || "");
-        const isSST = /sst|social/i.test(session.subject_request || "");
+        const isSST  = /sst|social/i.test(session.subject_request || "");
 
         const mathSections = `
 SECTION A — Multiple Choice Questions [20 Marks]
@@ -1058,7 +1114,7 @@ Q31–Q36  [5 marks each]
         (student describes what to draw with correct labels)
       → At least 1 case study or real-world application question
       → At least 1 compare/contrast of two major concepts
-        ${isSST ? "→ At least 1 map-pointing question (rivers/mountains/states/places)" : ""}
+        ${isSST  ? "→ At least 1 map-pointing question (rivers/mountains/states/places)" : ""}
         ${!isMath && !isSST ? "→ At least 1 question requiring a labelled diagram" : ""}
         `.trim();
 
@@ -1105,7 +1161,6 @@ MANDATORY QUALITY & BALANCE RULES:
 • For SST: spread questions proportionally across History, Geography, Civics, Economics
         `.trim();
 
-        // ✅ FIX #4: paper generation also uses timeout
         const paper = await callAI(paperPrompt, [
           {
             role: "user",
@@ -1114,24 +1169,23 @@ MANDATORY QUALITY & BALANCE RULES:
         ]);
 
         const totalMarksOnPaper = parseTotalMarksFromPaper(paper);
-        const startTime = Date.now();
+        const startTime         = Date.now();
 
         const activeSession: ExamSession = {
-          session_key: key,
-          status: "IN_EXAM",
-          subject_request: session.subject_request,
-          subject: subjectName,
-          question_paper: paper,
-          answer_log: [],
-          started_at: startTime,
-          total_marks: totalMarksOnPaper,
+          session_key:          key,
+          status:               "IN_EXAM",
+          subject_request:      session.subject_request,
+          subject:              subjectName,
+          question_paper:       paper,
+          answer_log:           [],
+          started_at:           startTime,
+          total_marks:          totalMarksOnPaper,
           syllabus_from_upload: session.syllabus_from_upload,
-          student_name: name,
-          student_class: cls,
-          student_board: board,
+          student_name:         name,
+          student_class:        cls,
+          student_board:        board,
         };
 
-        // ✅ FIX #1: persist IN_EXAM state with full question paper to Supabase
         await saveSession(activeSession);
 
         return NextResponse.json({
@@ -1146,7 +1200,7 @@ MANDATORY QUALITY & BALANCE RULES:
             `• Upload **photos / PDFs** of your handwritten answers\n` +
             `• You can send multiple messages — all will be collected\n` +
             `• When fully done, type **submit** (or **done** / **finish**)\n\n` +
-            `Good luck, ${name}! 💪 Give it your best.`,
+            `Good luck${callName}! 💪 Give it your best.`,
           startTime,
         });
       }
@@ -1154,7 +1208,7 @@ MANDATORY QUALITY & BALANCE RULES:
       // Fallback for examiner
       return NextResponse.json({
         reply:
-          `Please tell me the **subject** you want to be tested on, ${name}.\n` +
+          `Please tell me the **subject** you want to be tested on${callName}.\n` +
           `Options: Science | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n` +
           `📎 Or **upload your syllabus** as a PDF or image for a custom paper.`,
       });
@@ -1186,25 +1240,34 @@ MANDATORY QUALITY & BALANCE RULES:
 
     // ═══════════════════════════════════════════════════════════
     // PROGRESS MODE
-    // Receives pre-computed subjectStats from the Progress page
-    // (not raw attempts) so the AI sees trends, deltas, and gaps.
-    // Returns EXACTLY 4 lines in the structured format the UI
-    // renders as colour-coded cards.
+    // Receives pre-computed subjectStats from the Progress page.
+    // Falls back to legacy attempts array if old client sends it.
+    // Trims legacy attempts to last 10 per subject to stay within token budget.
     // ═══════════════════════════════════════════════════════════
     if (mode === "progress") {
-      // subjectStats is the new payload from ProgressPage
-      // Fall back to legacy attempts array if old client sends it
       const subjectStats = body?.subjectStats || null;
       const attempts     = body?.attempts     || [];
 
+      // Trim legacy attempts to last 10 per subject to avoid token overflow
+      const trimmedAttempts = Array.isArray(attempts)
+        ? Object.values(
+            attempts.reduce((acc: Record<string, any[]>, a: any) => {
+              const subj = a?.subject || "unknown";
+              if (!acc[subj]) acc[subj] = [];
+              acc[subj].push(a);
+              return acc;
+            }, {})
+          ).flatMap((group: any[]) => (group as any[]).slice(-10))
+        : [];
+
       const dataPayload = subjectStats
-        ? JSON.stringify(subjectStats, null, 2)
-        : JSON.stringify(attempts,     null, 2);
+        ? JSON.stringify(subjectStats,    null, 2)
+        : JSON.stringify(trimmedAttempts, null, 2);
 
       const progressPrompt = `
 You are a sharp CBSE academic advisor. Analyse the student's performance data below.
 
-Student: ${name}, Class ${cls}
+Student: ${name || "the student"}, Class ${cls}
 
 OUTPUT RULES — follow exactly, no exceptions:
 - Output EXACTLY 4 lines, each starting with its emoji prefix
@@ -1224,7 +1287,7 @@ If only one subject exists, adapt gracefully but still output all 4 lines.
       const reply = await callAI(progressPrompt, [
         {
           role: "user",
-          content: `Performance data for ${name}:\n${dataPayload}`,
+          content: `Performance data for ${name || "the student"}:\n${dataPayload}`,
         },
       ]);
       return NextResponse.json({ reply });
