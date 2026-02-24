@@ -489,7 +489,60 @@ export async function POST(req: NextRequest) {
       "";
 
     // ✅ FIX #5: sanitise all uploaded text immediately on entry
-    const uploadedText: string = sanitiseUpload(body?.uploadedText || "");
+    const rawUploadedText: string = body?.uploadedText || "";
+
+    // ── uploadType: explicit signal from ChatInput ─────────────
+    // "syllabus" = uploaded before exam started (IDLE or READY)
+    // "answer"   = uploaded during exam (IN_EXAM)
+    // undefined  = old client — fall back to status-based logic
+    const uploadType: "syllabus" | "answer" | undefined = body?.uploadType ?? undefined;
+
+    // ── Image OCR: if upload contains base64 image, extract via Gemini vision ──
+    let uploadedText: string = sanitiseUpload(rawUploadedText);
+
+    if (rawUploadedText.includes("[IMAGE_BASE64]")) {
+      const base64Match = rawUploadedText.match(/\[IMAGE_BASE64\]\n(data:image\/[^;]+;base64,[^\n]+)/);
+      if (base64Match) {
+        const base64Data = base64Match[1];
+        const mediaType  = base64Data.split(";")[0].replace("data:", "");
+        const base64Raw  = base64Data.split(",")[1];
+
+        const ocrPrompt =
+          uploadType === "syllabus"
+            ? "Extract all text from this syllabus image exactly as written. List every chapter, topic, and unit you can see."
+            : "Extract all handwritten or printed text from this exam answer image. Transcribe every word exactly as written.";
+
+        try {
+          const geminiKey = process.env.GEMINI_API_KEY;
+          if (geminiKey) {
+            const visionRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{
+                    role: "user",
+                    parts: [
+                      { text: ocrPrompt },
+                      { inline_data: { mime_type: mediaType, data: base64Raw } },
+                    ],
+                  }],
+                }),
+              }
+            );
+            const visionData = await visionRes.json();
+            const extracted  = visionData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (extracted.trim()) {
+              uploadedText = sanitiseUpload(extracted);
+            }
+          }
+        } catch {
+          // OCR failed — uploadedText stays as empty, student gets a clear message
+          uploadedText = "";
+        }
+      }
+    }
 
     const lower = message.toLowerCase().trim();
 
@@ -762,8 +815,20 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         if (message.trim() && !isSubmit(lower)) {
           parts.push(message.trim());
         }
+
         if (uploadedText) {
-          // ✅ SYNC FIX: marker matches what ChatUI expects to detect uploads
+          // uploadType === "syllabus" during an active exam means student
+          // accidentally uploaded the wrong file — reject it clearly
+          if (uploadType === "syllabus") {
+            return NextResponse.json({
+              reply:
+                `⚠️ That looks like a **syllabus upload** but your exam is already in progress.\n\n` +
+                `If you meant to upload an **answer**, please re-attach the file.\n` +
+                `If you want to submit your answer sheet, re-upload it — your exam is still running.\n\n` +
+                `⏱️ Timer is still running. Type **submit** when done.`,
+            });
+          }
+          // Marker matches what ChatUI.tsx splitUploadedContent expects
           parts.push(`[UPLOADED ANSWER — IMAGE/PDF]\n${uploadedText}`);
         }
 
@@ -789,42 +854,97 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
         });
       }
 
-      // ── IDLE: check for syllabus upload FIRST, then text ──
-      if (session.status === "IDLE" && !isGreeting(lower)) {
-
-        // CASE 1: Student uploaded a syllabus PDF/image
-        if (uploadedText.length > 30) {
-          const { subjectName, chapterList, raw } =
-            await parseSyllabusFromUpload(uploadedText, cls, board);
-
-          const newSession: ExamSession = {
-            session_key: key,
-            status: "READY",
-            subject_request: subjectName,
-            subject: subjectName,
-            answer_log: [],
-            syllabus_from_upload: chapterList,
-            student_name: name,
-            student_class: cls,
-            student_board: board,
-          };
-          // ✅ FIX #1: persist READY state immediately
-          await saveSession(newSession);
-
+      // ── SHARED HELPER: process a syllabus upload and save session ──
+      async function handleSyllabusUpload(currentStatus: "IDLE" | "READY"): Promise<NextResponse> {
+        if (!uploadedText || uploadedText.length <= 30) {
           return NextResponse.json({
             reply:
-              `📄 **Syllabus uploaded and read successfully!**\n\n` +
-              `I've extracted the following from your document:\n\n` +
-              `**Subject detected:** ${subjectName}\n\n` +
-              `**Topics / Chapters found:**\n${raw}\n\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `The exam paper will be generated **strictly based on the above syllabus only**.\n\n` +
-              `✅ If this looks correct, type **start** to begin your exam.\n` +
-              `✏️ If something is wrong, upload a clearer image or retype the subject name.`,
+              `⚠️ Could not extract readable text from your upload.\n\n` +
+              `Please try:\n` +
+              `• A clearer photo with good lighting\n` +
+              `• A text-based PDF (not a scanned image)\n` +
+              `• Typing the subject name directly instead`,
           });
         }
 
+        const { subjectName, chapterList, raw } =
+          await parseSyllabusFromUpload(uploadedText, cls, board);
+
+        const updatedSession: ExamSession = {
+          session_key: key,
+          status: "READY",
+          subject_request: subjectName,
+          subject: subjectName,
+          answer_log: [],
+          syllabus_from_upload: chapterList,
+          student_name: name,
+          student_class: cls,
+          student_board: board,
+        };
+        await saveSession(updatedSession);
+
+        const isOverride = currentStatus === "READY";
+        return NextResponse.json({
+          reply:
+            `📄 **Syllabus ${isOverride ? "updated" : "uploaded"} successfully!**\n\n` +
+            `**Subject detected:** ${subjectName}\n\n` +
+            `**Topics / Chapters found:**\n${raw}\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `The exam paper will be generated **strictly based on the above syllabus only**.\n\n` +
+            `✅ If this looks correct, type **start** to begin your exam.\n` +
+            `✏️ If something is wrong, upload a clearer image or retype the subject name.`,
+        });
+      }
+
+      // ── READY: syllabus upload OVERRIDE ───────────────────────
+      // Student typed a subject earlier but now wants to upload
+      // their own syllabus instead — allow the override.
+      if (session.status === "READY" && !isStart(lower)) {
+        // uploadType === "syllabus" means ChatInput knows exam hasn't started
+        const isSyllabusUpload =
+          uploadType === "syllabus" ||
+          // Legacy fallback: no uploadType but upload arrived before exam started
+          (!uploadType && uploadedText.length > 30 && !isStart(lower));
+
+        if (isSyllabusUpload && uploadedText.length > 30) {
+          return handleSyllabusUpload("READY");
+        }
+
+        // Any other message in READY state (not "start", not a syllabus upload)
+        // — remind them what to do next
+        if (!isStart(lower)) {
+          return NextResponse.json({
+            reply:
+              `📚 Subject is set to **${session.subject}**.\n\n` +
+              `📎 Want to use your own syllabus instead? Upload a PDF or image now.\n\n` +
+              `Type **start** when ready to begin. ⏱️ Timer starts immediately.`,
+          });
+        }
+      }
+
+      // ── IDLE: syllabus upload OR subject text ──────────────────
+      if (session.status === "IDLE" && !isGreeting(lower)) {
+
+        // CASE 1: Syllabus upload
+        // uploadType === "syllabus" is explicit; fallback: any upload in IDLE
+        const isSyllabusUpload =
+          uploadType === "syllabus" ||
+          (!uploadType && uploadedText.length > 30);
+
+        if (isSyllabusUpload && uploadedText.length > 30) {
+          return handleSyllabusUpload("IDLE");
+        }
+
         // CASE 2: Student typed a subject name
+        if (!message.trim()) {
+          return NextResponse.json({
+            reply:
+              `Please tell me the **subject** you want to be tested on, ${name}.\n` +
+              `Options: Science | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n` +
+              `📎 Or **upload your syllabus** as a PDF or image for a custom paper.`,
+          });
+        }
+
         const { subjectName } = getChaptersForSubject(message, cls);
         const newSession: ExamSession = {
           session_key: key,
@@ -836,7 +956,6 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
           student_class: cls,
           student_board: board,
         };
-        // ✅ FIX #1: persist READY state immediately
         await saveSession(newSession);
 
         return NextResponse.json({
@@ -844,8 +963,8 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
             `📚 Got it! I'll prepare a **strict CBSE Board question paper** for:\n` +
             `**${subjectName} — Class ${cls}**\n\n` +
             `Paper will strictly follow the NCERT Class ${cls} syllabus chapters.\n\n` +
-            `📎 **Tip:** If you'd like a paper based on YOUR specific syllabus instead,\n` +
-            `upload your syllabus as a PDF or image before typing start.\n\n` +
+            `📎 **Tip:** Want a paper based on YOUR specific syllabus?\n` +
+            `Upload your syllabus as a PDF or image now, before typing start.\n\n` +
             `Type **start** when you're ready to begin.\n` +
             `⏱️ Timer starts the moment you type start.`,
         });
@@ -1067,31 +1186,45 @@ MANDATORY QUALITY & BALANCE RULES:
 
     // ═══════════════════════════════════════════════════════════
     // PROGRESS MODE
+    // Receives pre-computed subjectStats from the Progress page
+    // (not raw attempts) so the AI sees trends, deltas, and gaps.
+    // Returns EXACTLY 4 lines in the structured format the UI
+    // renders as colour-coded cards.
     // ═══════════════════════════════════════════════════════════
     if (mode === "progress") {
-      const attempts = body?.attempts || [];
+      // subjectStats is the new payload from ProgressPage
+      // Fall back to legacy attempts array if old client sends it
+      const subjectStats = body?.subjectStats || null;
+      const attempts     = body?.attempts     || [];
+
+      const dataPayload = subjectStats
+        ? JSON.stringify(subjectStats, null, 2)
+        : JSON.stringify(attempts,     null, 2);
+
       const progressPrompt = `
-You are an academic advisor analyzing a CBSE student's performance.
+You are a sharp CBSE academic advisor. Analyse the student's performance data below.
+
 Student: ${name}, Class ${cls}
 
-RULES:
-- Max 6 lines
-- Mention specific subjects by name
-- Clear strengths with subject names
-- Clear weaknesses with subject names
-- One concrete improvement suggestion
-- Be encouraging and motivating
-- Include percentage trends if multiple attempts visible
+OUTPUT RULES — follow exactly, no exceptions:
+- Output EXACTLY 4 lines, each starting with its emoji prefix
+- No preamble, no sign-off, no extra lines whatsoever
+- Every line must name a specific subject — never say "a subject"
+- Be precise and blunt — no filler phrases like "keep it up" or "great job"
+
+LINE FORMAT (output all 4, in this exact order):
+💪 Strongest:  [subject] — [score]% ([grade]) — one specific reason why
+⚠️  Weakest:   [subject] — [score]% — [one specific thing to fix, e.g. "revise Chapter 3 definitions"]
+📈 Trend:      [subject showing biggest positive delta, or "No improvement data yet" if all first attempts]
+🎯 Next target: [subject closest to next grade] — [X] more marks → [next grade label]
+
+If only one subject exists, adapt gracefully but still output all 4 lines.
       `.trim();
 
       const reply = await callAI(progressPrompt, [
         {
           role: "user",
-          content: `Here are ${name}'s exam attempts:\n${JSON.stringify(
-            attempts,
-            null,
-            2
-          )}`,
+          content: `Performance data for ${name}:\n${dataPayload}`,
         },
       ]);
       return NextResponse.json({ reply });

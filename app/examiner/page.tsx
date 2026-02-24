@@ -265,7 +265,7 @@ export default function ExaminerPage() {
           paddingBottom: 16,
         }}
       >
-        <ChatInput onSend={handleSend} />
+        <ChatInput onSend={handleSend} examStarted={!!startTime} />
       </div>
     </div>
   );
