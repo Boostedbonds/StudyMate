@@ -32,6 +32,7 @@ export default function ExaminerPage() {
   const startTimestampRef   = useRef<number | null>(null);
   const chatContainerRef    = useRef<HTMLDivElement | null>(null);
   const elapsedRef          = useRef(0); // stable ref for saveExamAttempt
+  const sessionIdRef        = useRef<string>(crypto.randomUUID()); // stable for entire session
 
   // ── Auto-scroll ──────────────────────────────────────────────
   useEffect(() => {
@@ -110,9 +111,6 @@ export default function ExaminerPage() {
     } catch {}
   }
 
-  // downloadPaperAsPDF removed — PDFDownloadCard inside ChatUI
-  // handles the download on user click, avoiding browser auto-download blocks.
-
   // ── Core API caller ──────────────────────────────────────────
   async function sendToAPI(
     text: string,
@@ -127,12 +125,6 @@ export default function ExaminerPage() {
       const stored = localStorage.getItem("shauri_student");
       if (stored) student = JSON.parse(stored);
     } catch {}
-
-    // ── FIX 2: history uses raw content, NOT the display label ──
-    // We keep two parallel arrays:
-    //   messages       → displayed in UI (may have 📎 label)
-    //   apiMessages    → what we send to server (always real text)
-    // For the greeting, history is empty.
 
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -154,7 +146,10 @@ export default function ExaminerPage() {
               .replace(/\n\n📎 \[Uploaded document attached\]/g, "")
               .trim(),
           })),
-        student,
+        student: {
+          ...student,
+          sessionId: sessionIdRef.current, // ← FIX: stable sessionId so server finds the same session across all requests
+        },
       }),
     });
 
@@ -166,9 +161,6 @@ export default function ExaminerPage() {
     // ── Exam started → kick off timer + inject PDF download card ─
     if (typeof data?.startTime === "number") {
       startTimer(data.startTime);
-      // Push the paper content as a special PDF_MARKER message.
-      // ChatUI renders it as a clickable download card — no auto-download,
-      // no browser blocking, user always in control.
       if (aiReply) {
         const paperOnly = aiReply
           .split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0]
@@ -180,7 +172,7 @@ export default function ExaminerPage() {
           { role: "assistant", content: `${PDF_MARKER}${paperOnly}` },
         ]);
         setIsLoading(false);
-        return; // messages already set — skip the generic push below
+        return;
       }
     }
 
@@ -204,7 +196,6 @@ export default function ExaminerPage() {
     }
 
     if (aiReply) {
-      // ── If exam just started, push paper + a download button message ──
       if (typeof data?.startTime === "number") {
         const paperOnly = aiReply
           .split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0]
@@ -212,7 +203,6 @@ export default function ExaminerPage() {
         setMessages((prev) => [
           ...prev,
           { role: "assistant", content: aiReply },
-          // ChatUI detects this prefix and renders a download button
           { role: "assistant", content: `__DOWNLOAD_PDF__::${paperOnly}` },
         ]);
       } else {
@@ -229,8 +219,6 @@ export default function ExaminerPage() {
   ) {
     if (!text.trim() && !uploadedText) return;
 
-    // ── FIX 2: display label is separate from what we send to API ──
-    // UI shows a friendly label; API always gets the real text/uploadedText
     let displayContent = text.trim();
     if (uploadedText) {
       const label = uploadType === "syllabus"
