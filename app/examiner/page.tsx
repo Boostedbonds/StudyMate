@@ -1,63 +1,46 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import ChatUI, { PDF_MARKER } from "../components/ChatUI";
 import ChatInput from "../components/ChatInput";
 
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
+type Message = { role: "user" | "assistant"; content: string };
 
 type ExamAttempt = {
-  id: string;
-  date: string;
-  mode: "examiner";
-  subject: string;
-  chapters: string[];
-  marksObtained: number;
-  totalMarks: number;
-  scorePercent?: number;
-  timeTakenSeconds: number;
+  id: string; date: string; mode: "examiner";
+  subject: string; chapters: string[];
+  marksObtained: number; totalMarks: number;
+  scorePercent?: number; timeTakenSeconds: number;
   rawAnswerText: string;
 };
 
 export default function ExaminerPage() {
-  const [messages, setMessages]             = useState<Message[]>([]);
-  const [examStarted, setExamStarted]       = useState(false);
+  const [messages, setMessages]   = useState<Message[]>([]);
+  const [examStarted, setExamStarted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [isLoading, setIsLoading]           = useState(false);
-  const [examMeta, setExamMeta]             = useState<{
-    startTime?: number;
-    examEnded?: boolean;
-    marksObtained?: number;
-    totalMarks?: number;
-    percentage?: number;
-    timeTaken?: string;
-    subject?: string;
+  const [isLoading, setIsLoading] = useState(false);
+  const [examMeta, setExamMeta]   = useState<{
+    startTime?: number; examEnded?: boolean;
+    marksObtained?: number; totalMarks?: number;
+    percentage?: number; timeTaken?: string; subject?: string;
   }>({});
 
-  const timerRef          = useRef<NodeJS.Timeout | null>(null);
+  const timerRef         = useRef<NodeJS.Timeout | null>(null);
   const startTimestampRef = useRef<number | null>(null);
-  const elapsedRef        = useRef(0);
-  const sessionIdRef      = useRef<string>(crypto.randomUUID());
-  const greetingFiredRef  = useRef(false);
-  const isSendingRef      = useRef(false);
+  const elapsedRef       = useRef(0);
+  const sessionIdRef     = useRef<string>(crypto.randomUUID());
+  const greetingFiredRef = useRef(false);
+  const isSendingRef     = useRef(false);
 
-  // ── Fire opening greeting exactly once on mount ──────────────
   useEffect(() => {
     if (greetingFiredRef.current) return;
     greetingFiredRef.current = true;
-
-    const storageKey = `shauri_greeted_${sessionIdRef.current}`;
-    const alreadyGreeted = sessionStorage.getItem(storageKey);
-    if (!alreadyGreeted) {
-      sessionStorage.setItem(storageKey, "1");
+    const key = `shauri_greeted_${sessionIdRef.current}`;
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, "1");
       sendToAPI("", undefined, undefined, true);
     }
   }, []);
 
-  // ── Timer ────────────────────────────────────────────────────
   function startTimer(serverStartTime: number) {
     if (timerRef.current) return;
     startTimestampRef.current = serverStartTime;
@@ -79,28 +62,16 @@ export default function ExaminerPage() {
 
   useEffect(() => () => stopTimer(), []);
 
-  function formatTime(seconds: number) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h}h ${m}m ${s}s`;
+  function formatTime(s: number) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return `${h}h ${m}m ${sec}s`;
   }
 
-  // ── Save attempt locally ─────────────────────────────────────
-  function saveExamAttempt(
-    allMessages: Message[],
-    timeTaken: number,
-    subject: string,
-    chapters: string[],
-    marksObtained: number,
-    totalMarks: number
-  ) {
-    const scorePercent = totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 100) : 0;
+  function saveExamAttempt(allMessages: Message[], timeTaken: number, subject: string, chapters: string[], marksObtained: number, totalMarks: number) {
     const attempt: ExamAttempt = {
-      id: crypto.randomUUID(),
-      date: new Date().toISOString(),
-      mode: "examiner",
-      subject, chapters, marksObtained, totalMarks, scorePercent,
+      id: crypto.randomUUID(), date: new Date().toISOString(), mode: "examiner",
+      subject, chapters, marksObtained, totalMarks,
+      scorePercent: totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 100) : 0,
       timeTakenSeconds: timeTaken,
       rawAnswerText: allMessages.filter(m => m.role === "user").map(m => m.content).join("\n\n"),
     };
@@ -112,27 +83,17 @@ export default function ExaminerPage() {
     } catch {}
   }
 
-  // ── Core API caller ──────────────────────────────────────────
-  async function sendToAPI(
-    text: string,
-    uploadedText?: string,
-    uploadType?: "syllabus" | "answer",
-    isGreeting = false
-  ) {
+  async function sendToAPI(text: string, uploadedText?: string, uploadType?: "syllabus" | "answer", isGreeting = false) {
     if (isSendingRef.current) return;
     isSendingRef.current = true;
     setIsLoading(true);
 
     let student: any = null;
-    try {
-      const stored = localStorage.getItem("shauri_student");
-      if (stored) student = JSON.parse(stored);
-    } catch {}
+    try { student = JSON.parse(localStorage.getItem("shauri_student") || "null"); } catch {}
 
     try {
       const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "examiner",
           message: isGreeting ? "hi" : text,
@@ -145,7 +106,6 @@ export default function ExaminerPage() {
               content: m.content
                 .replace(/\n\n📋 \[Syllabus uploaded\]/g, "")
                 .replace(/\n\n📝 \[Answer uploaded\]/g, "")
-                .replace(/\n\n📎 \[Uploaded document attached\]/g, "")
                 .trim(),
             })),
           student: { ...student, sessionId: sessionIdRef.current },
@@ -155,18 +115,14 @@ export default function ExaminerPage() {
       const data = await res.json();
       const aiReply: string = typeof data?.reply === "string" ? data.reply : "";
 
-      // ── Exam started ─────────────────────────────────────────
+      // Exam started — generate paper
       if (typeof data?.startTime === "number") {
         startTimer(data.startTime);
-        // Extract subject from paper for examMeta
         const subjectMatch = aiReply.match(/Subject\s*[:\|]\s*(.+)/i);
         const detectedSubject = subjectMatch ? subjectMatch[1].trim() : data?.subject;
         setExamMeta(prev => ({ ...prev, startTime: data.startTime, subject: detectedSubject }));
-
         if (aiReply) {
-          const paperOnly = aiReply
-            .split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0]
-            .trim();
+          const paperOnly = aiReply.split("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")[0].trim();
           setMessages(prev => [
             ...prev,
             { role: "assistant", content: aiReply },
@@ -176,15 +132,13 @@ export default function ExaminerPage() {
         return;
       }
 
-      // ── Exam ended ───────────────────────────────────────────
+      // Exam ended
       if (data?.examEnded === true) {
         stopTimer();
         const timeTaken = elapsedRef.current;
-        const evaluationWithTime = aiReply + `\n\n⏱ Time Taken: ${formatTime(timeTaken)}`;
-        setMessages(prev => [...prev, { role: "assistant", content: evaluationWithTime }]);
+        setMessages(prev => [...prev, { role: "assistant", content: aiReply + `\n\n⏱ Time Taken: ${formatTime(timeTaken)}` }]);
         setExamMeta(prev => ({
-          ...prev,
-          examEnded: true,
+          ...prev, examEnded: true,
           marksObtained: data?.marksObtained ?? 0,
           totalMarks: data?.totalMarks ?? 0,
           percentage: data?.percentage ?? 0,
@@ -195,138 +149,72 @@ export default function ExaminerPage() {
         return;
       }
 
-      // ── Normal reply ─────────────────────────────────────────
-      if (aiReply) {
-        setMessages(prev => [...prev, { role: "assistant", content: aiReply }]);
-      }
+      if (aiReply) setMessages(prev => [...prev, { role: "assistant", content: aiReply }]);
 
-    } catch (err) {
-      console.error("[sendToAPI] fetch failed:", err);
-      setMessages(prev => [...prev, { role: "assistant", content: "⚠️ Network error. Please check your connection and try again." }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "⚠️ Network error. Please try again." }]);
     } finally {
       isSendingRef.current = false;
       setIsLoading(false);
     }
   }
 
-  // ── handleSend ───────────────────────────────────────────────
   async function handleSend(text: string, uploadedText?: string, uploadType?: "syllabus" | "answer") {
     if (!text.trim() && !uploadedText) return;
     if (isSendingRef.current) return;
-
     let displayContent = text.trim();
     if (uploadedText) {
       const label = uploadType === "syllabus" ? "📋 [Syllabus uploaded]" : "📝 [Answer uploaded]";
       displayContent = displayContent ? `${displayContent}\n\n${label}` : label;
     }
-
     setMessages(prev => [...prev, { role: "user", content: displayContent }]);
     await sendToAPI(text, uploadedText, uploadType);
   }
 
   return (
-    <div style={{
-      height: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      background: "#f8fafc",
-    }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", background: "#f8fafc" }}>
 
-      {/* ── Top bar ── */}
+      {/* Top bar */}
       <div style={{
-        height: 52,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 20px",
-        background: "#fff",
-        borderBottom: "1px solid #e2e8f0",
-        flexShrink: 0,
-        zIndex: 20,
+        height: 52, display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 20px", background: "#fff", borderBottom: "1px solid #e2e8f0", flexShrink: 0, zIndex: 20,
       }}>
-        <button
-          onClick={() => (window.location.href = "/modes")}
-          style={{
-            padding: "7px 14px",
-            background: "#f1f5f9",
-            color: "#374151",
-            borderRadius: 8,
-            border: "1px solid #e2e8f0",
-            fontSize: 13,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          ← Back
-        </button>
-
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", letterSpacing: "0.05em" }}>
-          📋 Examiner Mode
-        </div>
-
-        {/* Floating timer in top bar when exam active */}
-        {examStarted && (
+        <button onClick={() => window.location.href = "/modes"} style={{
+          padding: "7px 14px", background: "#f1f5f9", color: "#374151",
+          borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, cursor: "pointer", fontWeight: 600,
+        }}>← Back</button>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>📋 Examiner Mode</span>
+        {examStarted ? (
           <div style={{
             background: "#0f172a", color: "#38bdf8",
             padding: "6px 14px", borderRadius: 8,
             fontFamily: "monospace", fontSize: 14, fontWeight: 700,
-          }}>
-            ⏱ {formatTime(elapsedSeconds)}
-          </div>
-        )}
-
-        {!examStarted && <div style={{ width: 80 }} />}
+          }}>⏱ {formatTime(elapsedSeconds)}</div>
+        ) : <div style={{ width: 80 }} />}
       </div>
 
-      {/* ── Main area: split view fills remaining height ── */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {/* ChatUI takes full height for the split */}
-        <div style={{ flex: 1, overflow: "hidden" }}>
-          <ChatUI
-            messages={messages}
-            mode="examiner"
-            examMeta={examMeta}
-          />
-        </div>
+      {/* Split view — fills remaining height */}
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        <ChatUI messages={messages} mode="examiner" examMeta={examMeta} />
+      </div>
 
-        {/* Loading indicator */}
-        {isLoading && (
-          <div style={{
-            padding: "8px 24px",
-            background: "#fff",
-            borderTop: "1px solid #f1f5f9",
-            fontSize: 13,
-            color: "#64748b",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexShrink: 0,
-          }}>
-            <span style={{ animation: "pulse 1.5s infinite" }}>●</span>
-            <span>●</span>
-            <span style={{ animation: "pulse 1.5s infinite 0.3s" }}>●</span>
-          </div>
-        )}
-
-        {/* ── Input bar — sits in the right half ── */}
+      {/* Loading indicator */}
+      {isLoading && (
         <div style={{
-          background: "#fff",
-          borderTop: "1px solid #e2e8f0",
-          padding: "10px 16px",
-          // Align input to the right 50% to match the answer panel
-          display: "flex",
-          justifyContent: "flex-end",
-          flexShrink: 0,
+          padding: "6px 20px", background: "#fff", borderTop: "1px solid #f1f5f9",
+          fontSize: 13, color: "#64748b", display: "flex", gap: 6, flexShrink: 0,
         }}>
-          <div style={{ width: "50%" }}>
-            <ChatInput
-              onSend={handleSend}
-              examStarted={examStarted}
-              disabled={isLoading}
-              inline
-            />
-          </div>
+          <span>●</span><span>●</span><span>●</span>
+        </div>
+      )}
+
+      {/* Input bar — aligned to right 50% to match answer panel */}
+      <div style={{
+        background: "#fff", borderTop: "1px solid #e2e8f0",
+        padding: "10px 16px", display: "flex", justifyContent: "flex-end", flexShrink: 0,
+      }}>
+        <div style={{ width: "50%", paddingLeft: 16 }}>
+          <ChatInput onSend={handleSend} examStarted={examStarted} disabled={isLoading} />
         </div>
       </div>
     </div>
