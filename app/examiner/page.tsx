@@ -29,7 +29,32 @@ function clearSavedMessages() {
   try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {}
 }
 
-// ─── Render markdown-lite ────────────────────────────────────
+// ─── Save / load paper so it survives refresh ─────────────────
+function savePaper(paper: string, subject: string) {
+  try {
+    localStorage.setItem("shauri_exam_paper", paper);
+    localStorage.setItem("shauri_exam_paper_subject", subject);
+  } catch {}
+}
+
+function loadSavedPaper(): { paper: string; subject: string } {
+  try {
+    const paper   = localStorage.getItem("shauri_exam_paper")         || "";
+    const subject = localStorage.getItem("shauri_exam_paper_subject") || "";
+    return { paper, subject };
+  } catch {
+    return { paper: "", subject: "" };
+  }
+}
+
+function clearSavedPaper() {
+  try {
+    localStorage.removeItem("shauri_exam_paper");
+    localStorage.removeItem("shauri_exam_paper_subject");
+  } catch {}
+}
+
+// ─── Render markdown-lite ─────────────────────────────────────
 function renderText(text: string): React.ReactNode {
   return text.split("\n").map((line, i, arr) => {
     const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) =>
@@ -59,7 +84,7 @@ function Bubble({ m }: { m: Message }) {
   );
 }
 
-// ─── Resume Banner ────────────────────────────────────────────
+// ─── Resume Banner ─────────────────────────────────────────────
 function ResumeBanner({ subject, elapsed, onDismiss }: {
   subject?: string;
   elapsed: string;
@@ -94,7 +119,7 @@ function ResumeBanner({ subject, elapsed, onDismiss }: {
   );
 }
 
-// ─── Reconnecting Screen ─────────────────────────────────────
+// ─── Reconnecting Screen ──────────────────────────────────────
 function ReconnectingScreen() {
   return (
     <div style={{
@@ -122,7 +147,7 @@ function ReconnectingScreen() {
   );
 }
 
-// ─── CBSE Print ──────────────────────────────────────────────
+// ─── CBSE Print ───────────────────────────────────────────────
 function printCBSEPaper({
   paperContent, subject, studentName, studentClass,
 }: {
@@ -246,14 +271,40 @@ function getOrCreateSessionId(): string {
   return sid;
 }
 
+// ─── FIX: Much stricter subject extraction ────────────────────
+// Only extract subject from very specific server reply patterns.
+// Never pick up user-typed text as a subject.
 function extractConfirmedSubject(reply: string): string {
-  const uploadMatch = reply.match(/\*?\*?Subject detected[:\*\s]+\*?\*?([^\n*]+)/i);
-  if (uploadMatch) return uploadMatch[1].trim();
-  const paperMatch = reply.match(/question paper for[:\s]*\n?\*?\*?([^\n*]+)/i)
-    || reply.match(/for:\s*\n\*?\*?([^\n*]+)/i);
-  if (paperMatch) return paperMatch[1].trim();
-  const setMatch = reply.match(/[Ss]ubject is set to\s+\*?\*?([^\n*]+)/i);
-  if (setMatch) return setMatch[1].trim();
+  // Pattern 1: "Subject detected: Mathematics" (from syllabus upload)
+  const uploadMatch = reply.match(/Subject detected[:\s*]+\*?\*?([A-Za-z\s\–\-\/]+?)(?:\*\*)?(?:\n|$)/i);
+  if (uploadMatch) {
+    const candidate = uploadMatch[1].trim().replace(/\*+/g, "");
+    if (candidate.length > 1 && candidate.length < 60) return candidate;
+  }
+
+  // Pattern 2: "subject is set to **Mathematics**" (READY state reply)
+  const setMatch = reply.match(/subject is set to\s+\*?\*?([A-Za-z\s\–\-\/]+?)\*?\*?(?:\.|,|\n|$)/i);
+  if (setMatch) {
+    const candidate = setMatch[1].trim().replace(/\*+/g, "");
+    if (candidate.length > 1 && candidate.length < 60) return candidate;
+  }
+
+  // Pattern 3: "question paper for:\n**Mathematics — Class 9**"
+  const paperForMatch = reply.match(/question paper for[:\s]*\n\*?\*?([A-Za-z\s\–\-\/]+?)\s*[—–-]\s*Class/i);
+  if (paperForMatch) {
+    const candidate = paperForMatch[1].trim().replace(/\*+/g, "");
+    if (candidate.length > 1 && candidate.length < 60) return candidate;
+  }
+
+  // Pattern 4: "I'll prepare a strict CBSE Board question paper for:\n**Science**"
+  const prepareMatch = reply.match(/prepare a.*?question paper for[:\s]*\n\*?\*?([A-Za-z\s\–\-\/]+?)\*?\*?(?:\n|—|–)/i);
+  if (prepareMatch) {
+    const candidate = prepareMatch[1].trim().replace(/\*+/g, "");
+    // Reject if it looks like a user-typed phrase rather than a subject name
+    const knownSubjects = /^(science|mathematics|maths?|sst|social|history|geography|civics|economics|english|hindi|physics|chemistry|biology)/i;
+    if (knownSubjects.test(candidate)) return candidate;
+  }
+
   return "";
 }
 
@@ -264,19 +315,19 @@ export default function ExaminerPage() {
     return `${n} 📋 I'm your strict CBSE Examiner.\n\nTell me the **subject** you want to be tested on:\nScience | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n📎 **OR** upload your **syllabus as a PDF or image** and I'll generate a paper exactly based on it.\n\n⏱️ Your timer starts the moment you type **start**.`;
   }
 
-  const [messages, setMessages]       = useState<Message[]>([]);
-  const [paperContent, setPaper]      = useState("");
-  const [examStarted, setStarted]     = useState(false);
-  const [elapsedSec, setElapsed]      = useState(0);
-  const [isLoading, setLoading]       = useState(false);
-  const [reconnecting, setReconnecting] = useState(true);  // show splash on mount
+  const [messages, setMessages]           = useState<Message[]>([]);
+  const [paperContent, setPaper]          = useState("");
+  const [examStarted, setStarted]         = useState(false);
+  const [elapsedSec, setElapsed]          = useState(0);
+  const [isLoading, setLoading]           = useState(false);
+  const [reconnecting, setReconnecting]   = useState(true);
   const [showResumeBanner, setResumeBanner] = useState(false);
-  const [examMeta, setMeta]           = useState<{
+  const [examMeta, setMeta]               = useState<{
     examEnded?: boolean; marksObtained?: number; totalMarks?: number;
     percentage?: number; timeTaken?: string; subject?: string;
   }>({});
-  const [studentName,  setStudentName]  = useState("");
-  const [studentClass, setStudentClass] = useState("");
+  const [studentName,  setStudentName]    = useState("");
+  const [studentClass, setStudentClass]  = useState("");
 
   const confirmedSubjectRef = useRef<string>("");
   const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -290,7 +341,6 @@ export default function ExaminerPage() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => () => stopTimer(), []);
 
-  // ── Save messages to localStorage on every change ────────────
   useEffect(() => {
     if (messages.length === 0) return;
     saveMessages(messages);
@@ -309,13 +359,27 @@ export default function ExaminerPage() {
 
     const sid = localStorage.getItem("shauri_exam_sid");
 
-    // Only attempt resume if there's an active session ID
     if (sid) {
       attemptResume(name, cls, sid);
     } else {
-      // No active exam — restore saved chat or show greeting
+      // FIX: Even without a session ID, check if we have a saved paper in localStorage.
+      // This handles the case where the session ID was cleared but the paper is still local.
+      const { paper, subject } = loadSavedPaper();
       const saved = loadSavedMessages();
-      if (saved.length > 0) {
+
+      if (paper) {
+        // We have a paper saved — show it even without a live server session
+        setPaper(paper);
+        if (subject) {
+          setMeta(p => ({ ...p, subject }));
+          confirmedSubjectRef.current = subject;
+        }
+        if (saved.length > 0) {
+          setMessages(saved);
+        } else {
+          setMessages([{ role: "assistant", content: buildGreeting(name) }]);
+        }
+      } else if (saved.length > 0) {
         setMessages(saved);
       } else {
         setMessages([{ role: "assistant", content: buildGreeting(name) }]);
@@ -345,42 +409,100 @@ export default function ExaminerPage() {
       const data = await res.json();
 
       if (data?.resumeExam === true && data?.startTime) {
-        // Active exam found on server — restore everything
-        startTimer(data.startTime);
-        setMeta(p => ({ ...p, subject: data.subject || p.subject }));
-        if (data.questionPaper) setPaper(data.questionPaper);
+        // ── Active exam found on server ──
+        const subject = data.subject || "";
 
-        // Restore saved chat if any, else just show the resume message
+        startTimer(data.startTime);
+        setMeta(p => ({ ...p, subject }));
+
+        // FIX: Restore paper — prefer server paper, fall back to localStorage
+        const serverPaper = data.questionPaper || "";
+        const { paper: localPaper, subject: localSubject } = loadSavedPaper();
+        const paperToShow = serverPaper || localPaper;
+
+        if (paperToShow) {
+          setPaper(paperToShow);
+          savePaper(paperToShow, subject || localSubject);
+        }
+
+        // FIX: Restore the confirmedSubjectRef so subsequent messages work correctly
+        if (subject) confirmedSubjectRef.current = subject;
+
         const saved = loadSavedMessages();
         const resumeMsg: Message = {
           role: "assistant",
-          content: data.reply || `⚡ Exam restored — **${data.subject}**. Your question paper is on the right. Keep writing!`,
+          content: data.reply || `⚡ Exam restored — **${subject}**. Your question paper is on the right. Keep writing!`,
         };
         setMessages(saved.length > 0 ? [...saved, resumeMsg] : [resumeMsg]);
         setResumeBanner(true);
 
       } else if (data?.reply?.includes("exam is still in progress")) {
         // Server has exam but returned as a normal reply
+        const subject = data.subject || "";
         const saved = loadSavedMessages();
         const msg: Message = { role: "assistant", content: data.reply };
         setMessages(saved.length > 0 ? [...saved, msg] : [msg]);
-        if (data.questionPaper) setPaper(data.questionPaper);
+
+        // FIX: Same paper restore logic
+        const serverPaper = data.questionPaper || "";
+        const { paper: localPaper, subject: localSubject } = loadSavedPaper();
+        const paperToShow = serverPaper || localPaper;
+        if (paperToShow) {
+          setPaper(paperToShow);
+          savePaper(paperToShow, subject || localSubject);
+        }
+
+        if (subject) confirmedSubjectRef.current = subject;
         if (data.startTime) startTimer(data.startTime);
         setResumeBanner(true);
 
       } else {
-        // No active exam on server — show saved chat or greeting
+        // No active exam on server — clear stale session ID
+        localStorage.removeItem("shauri_exam_sid");
+
+        // FIX: Still check for a locally saved paper (e.g. internet dropped after paper was generated)
+        const { paper: localPaper, subject: localSubject } = loadSavedPaper();
         const saved = loadSavedMessages();
-        if (saved.length > 0) {
+
+        if (localPaper) {
+          // We have a paper saved locally — show it and let user continue
+          setPaper(localPaper);
+          if (localSubject) {
+            setMeta(p => ({ ...p, subject: localSubject }));
+            confirmedSubjectRef.current = localSubject;
+          }
+          const resumeLocalMsg: Message = {
+            role: "assistant",
+            content: `⚡ **Session restored from local storage.**\n\nYour **${localSubject || "exam"}** paper is shown on the right.\n\nIf your timer was running, please note the time gap. Type your answers and **submit** when done.`,
+          };
+          setMessages(saved.length > 0 ? [...saved, resumeLocalMsg] : [resumeLocalMsg]);
+          setResumeBanner(true);
+        } else if (saved.length > 0) {
           setMessages(saved);
         } else {
           setMessages([{ role: "assistant", content: buildGreeting(name) }]);
         }
       }
     } catch {
-      // Network issue — still show saved chat or greeting
+      // Network error — clear stale session ID, but still try to show local paper
+      localStorage.removeItem("shauri_exam_sid");
+
+      const { paper: localPaper, subject: localSubject } = loadSavedPaper();
       const saved = loadSavedMessages();
-      if (saved.length > 0) {
+
+      if (localPaper) {
+        setPaper(localPaper);
+        if (localSubject) {
+          setMeta(p => ({ ...p, subject: localSubject }));
+          confirmedSubjectRef.current = localSubject;
+        }
+        const offlineMsg: Message = {
+          role: "assistant",
+          content: `⚠️ **Network error — running in offline mode.**\n\nYour **${localSubject || "exam"}** paper has been restored from your device.\n\nType your answers here and **submit** when you're back online.\n\nYour answers will be saved locally until evaluation.`,
+        };
+        setMessages(saved.length > 0 ? [...saved, offlineMsg] : [offlineMsg]);
+        setResumeBanner(true);
+      } else if (saved.length > 0) {
         setMessages(saved);
       } else {
         setMessages([{ role: "assistant", content: buildGreeting(name) }]);
@@ -393,7 +515,6 @@ export default function ExaminerPage() {
   function startTimer(ts: number) {
     if (timerRef.current) return;
     startTsRef.current = ts;
-    // Immediately set elapsed so it's correct from the first frame
     const initialElapsed = Math.floor((Date.now() - ts) / 1000);
     elapsedRef.current = initialElapsed;
     setElapsed(initialElapsed);
@@ -457,21 +578,45 @@ export default function ExaminerPage() {
       const reply: string = data?.reply ?? "";
 
       if (data?.resumeExam === true && typeof data.startTime === "number") {
+        const subject = data.subject || "";
         startTimer(data.startTime);
-        setMeta(p => ({ ...p, subject: data.subject || p.subject }));
-        if (data.questionPaper) setPaper(data.questionPaper);
+        setMeta(p => ({ ...p, subject }));
+
+        const serverPaper = data.questionPaper || "";
+        const { paper: localPaper, subject: localSubject } = loadSavedPaper();
+        const paperToShow = serverPaper || localPaper;
+        if (paperToShow) {
+          setPaper(paperToShow);
+          savePaper(paperToShow, subject || localSubject);
+        }
+
+        if (subject) confirmedSubjectRef.current = subject;
         if (reply) setMessages(p => [...p, { role: "assistant", content: reply }]);
         setResumeBanner(true);
         return;
       }
 
       if (typeof data?.startTime === "number") {
+        // ── Exam just started — paper generated ──
         startTimer(data.startTime);
         const paper = data?.paper || reply;
-        const subj  = paper.match(/Subject\s*[:\|]\s*([^\n]+)/i);
-        setMeta(p => ({ ...p, subject: subj ? subj[1].trim() : data?.subject || p.subject }));
-        setPaper(paper);
-        confirmedSubjectRef.current = "";
+
+        // FIX: Extract subject from the paper header, not from reply text
+        const subjectFromPaper = paper.match(/Subject\s*[:\|]\s*([^\n]+)/i);
+        const resolvedSubject  = subjectFromPaper
+          ? subjectFromPaper[1].trim()
+          : (data?.subject || confirmedSubjectRef.current || "");
+
+        setMeta(p => ({ ...p, subject: resolvedSubject }));
+
+        // FIX: Save paper to localStorage so it survives refresh
+        if (paper) {
+          setPaper(paper);
+          savePaper(paper, resolvedSubject);
+        }
+
+        confirmedSubjectRef.current = resolvedSubject;
+
         setMessages(p => [...p, {
           role: "assistant",
           content: reply || "✅ Paper ready! It's displayed on the right panel.\n\nWrite your answers in your notebook and type them here when done. Type **submit** to finish.",
@@ -494,14 +639,16 @@ export default function ExaminerPage() {
           timeTaken:     data?.timeTaken     ?? fmt(taken),
           subject:       data?.subject       ?? p.subject,
         }));
-        // Exam over — clear saved session + chat
+        // Exam over — clear everything
         localStorage.removeItem("shauri_exam_sid");
         clearSavedMessages();
+        clearSavedPaper();
         confirmedSubjectRef.current = "";
         return;
       }
 
       if (reply) {
+        // FIX: Only extract subject from server replies, never from user messages
         const extracted = extractConfirmedSubject(reply);
         if (extracted) confirmedSubjectRef.current = extracted;
         setMessages(p => [...p, { role: "assistant", content: reply }]);
@@ -542,7 +689,6 @@ export default function ExaminerPage() {
         .print-btn:hover{background:#1d4ed8!important}
       `}</style>
 
-      {/* ── Full-screen reconnecting splash ── */}
       {reconnecting && <ReconnectingScreen />}
 
       {/* ── TOP BAR ── */}
@@ -609,7 +755,6 @@ export default function ExaminerPage() {
               }} />
               {examMeta.examEnded ? "Evaluation Complete" : examActive ? "Type your answers here" : "Examiner Chat"}
             </div>
-            {/* Mobile print button */}
             {paperContent && (
               <button
                 className="print-btn"
