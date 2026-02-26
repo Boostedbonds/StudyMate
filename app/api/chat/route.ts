@@ -364,25 +364,27 @@ async function parseSyllabusFromUpload(
   const safe = sanitiseUpload(uploadedText);
 
   const extractionPrompt = `
-You are a syllabus extraction assistant.
-The following text was extracted from a student's uploaded syllabus document (PDF or image).
-Your job is to extract EXACTLY what is listed in the document — do NOT add, invent, or remove any topics.
+You are a syllabus extraction assistant for CBSE Class ${cls} students.
+The following text was extracted from a student's uploaded syllabus document.
 
-Instructions:
-1. Identify the subject name (e.g., "Mathematics", "Science – Physics", "English", etc.)
-2. List every chapter, topic, unit, or section exactly as it appears in the document.
-3. Format the output as:
+Your job:
+1. Identify the PRIMARY subject name. If multiple subjects appear in the document, pick the ONE that has the most content listed. Write it as a clean, short name (e.g. "English", "Mathematics", "Science", "Social Science – History", "Hindi"). DO NOT list multiple subjects as a single subject name.
+2. List every chapter, topic, unit, or section for that subject exactly as it appears.
+3. Format your output EXACTLY as:
 
-SUBJECT: <exact subject name>
+SUBJECT: <single clean subject name>
 
 CHAPTERS / TOPICS:
 1. <topic or chapter name>
 2. <topic or chapter name>
 ...
 
-If the document lists sub-topics under chapters, include them indented under their chapter.
-If multiple subjects are present, list them all with their own sections.
-Do NOT include any commentary or explanation — output the structured list only.
+Rules:
+- SUBJECT line must be ONE subject only — not a comma-separated list
+- If you see "English Language and Literature" → write SUBJECT: English
+- If you see "Democratic Politics" or "Contemporary India" → write SUBJECT: Social Science
+- If you see "Mathematics" or "Maths" → write SUBJECT: Mathematics
+- Do NOT include any commentary — output the structured list only
 
 RAW EXTRACTED TEXT FROM UPLOAD:
 ──────────────────────────────────────────
@@ -1079,8 +1081,10 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
           chapterList = resolved.chapterList;
         }
 
-        const isMath = /math/i.test(session.subject_request || "");
-        const isSST  = /sst|social/i.test(session.subject_request || "");
+        const isMath = /math/i.test(subjectName);
+        const isSST  = /sst|social|history|geography|civics|economics|politics|contemporary/i.test(subjectName);
+        const isEnglish = /english/i.test(subjectName);
+        const isHindi   = /hindi/i.test(subjectName);
 
         const mathSections = `
 SECTION A — Multiple Choice Questions [20 Marks]
@@ -1155,6 +1159,8 @@ Q31–Q36  [5 marks each]
 
         const paperPrompt = `
 You are an official CBSE Board question paper setter for Class ${cls}.
+THIS PAPER IS FOR: **${subjectName}** — ALL questions must be about ${subjectName} topics ONLY.
+Do NOT mix in questions from any other subject. If the syllabus mentions other subjects, IGNORE them.
 Generate a COMPLETE, FULL-LENGTH question paper STRICTLY based on the syllabus/chapters listed below.
 Output the paper ONLY. No commentary outside the paper itself.
 
