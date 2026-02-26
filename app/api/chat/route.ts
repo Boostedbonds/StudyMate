@@ -583,8 +583,9 @@ export async function POST(req: NextRequest) {
     const greetName = name || "there";
     const callName  = name ? `, ${name}` : "";
 
-    const cls   = sanitiseClass(student?.class || "");
-    const board = sanitiseBoard(student?.board || "");
+    const clsRaw = sanitiseClass(student?.class || "");
+    const cls    = clsRaw.replace(/^class\s*/i, "").trim();
+    const board  = sanitiseBoard(student?.board || "");
 
     const history: ChatMessage[] = Array.isArray(body?.history)
       ? body.history
@@ -1360,7 +1361,6 @@ Study Tip   : [one specific, actionable improvement — e.g. "Practise Assertion
         // ═══════════════════════════════════════════════════════════
 
         // ── ENGLISH Language & Literature — CBSE Class 9/10 ──────────
-        // Official split: Reading 20 + Writing 20 + Grammar 20 + Literature 20 = 80
         const englishSections = `
 SECTION A — READING [20 Marks]
 ━━━━━━━━━━━━━━━━━━
@@ -1435,7 +1435,6 @@ Q15  Long Answer — Prose / Drama [4 marks]
         `.trim();
 
         // ── HINDI — CBSE Class 9/10 ──────────────────────────────────
-        // Official split: Reading 20 + Writing 20 + Grammar 20 + Literature 20 = 80
         const hindiSections = `
 SECTION A — APATHIT GADYANSH / KAVYANSH (Unseen Reading) [20 Marks]
 ━━━━━━━━━━━━━━━━━━
@@ -1494,9 +1493,6 @@ Q15  Dirgha Uttariya Prashn (Long answer question) [4 marks]
         `.trim();
 
         // ── MATHEMATICS — CBSE Class 9/10 ────────────────────────────
-        // Official: Section A(1m×20) + Section B(2m×5) + Section C(3m×6) + Section D(4m×4)
-        // + Section E(4m case study ×3) = 20+10+18+16+12 = 80... but for Class 9 SA/annual:
-        // Standard pattern used in schools: A(1m×20) + B(2m×5) + C(3m×6) + D(5m×6) = 80
         const mathSections = `
 SECTION A — MCQ & Assertion-Reason [20 × 1 = 20 Marks]
 ━━━━━━━━━━━━━━━━━━
@@ -1553,7 +1549,6 @@ Q38  Case Study 3 [4 marks]
         `.trim();
 
         // ── SCIENCE — CBSE Class 9/10 ────────────────────────────────
-        // Official: Section A(1m×20) + Section B(2m×5) + Section C(3m×6) + Section D(5m×4) + Section E(4m×3) = 80
         const scienceSections = `
 SECTION A — Objective [20 × 1 = 20 Marks]
 ━━━━━━━━━━━━━━━━━━
@@ -1610,8 +1605,6 @@ Q38  Case Study — Chemistry [4 marks]
         `.trim();
 
         // ── SOCIAL SCIENCE — CBSE Class 9/10 ─────────────────────────
-        // Official: Section A MCQ(1m×20) + Section B SAQ(3m×4) + Section C LAQ(5m×5) + Section D Source(4m×3) + Section E Map(5m×2) = 80... 
-        // Adjusted: A(1m×20) + B(3m×6) + C(5m×5) + D Source(4m×3) + E Map(2m+3m) = 80
         const sstSections = `
 SECTION A — Objective [20 × 1 = 20 Marks]
 ━━━━━━━━━━━━━━━━━━
@@ -1803,7 +1796,7 @@ QUALITY RULES — NON-NEGOTIABLE:
             `• You can send multiple messages — all will be collected\n` +
             `• When fully done, type **submit** (or **done** / **finish**)\n\n` +
             `Good luck${callName}! 💪 Give it your best.`,
-          paper,        // ← paper sent separately, never mixed into reply
+          paper,
           startTime,
         });
       }
