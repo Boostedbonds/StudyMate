@@ -1188,17 +1188,133 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
           chapterList = resolved.chapterList;
         }
 
-        const isMath = /math/i.test(subjectName);
-        const isSST  = /sst|social|history|geography|civics|economics|politics|contemporary/i.test(subjectName);
+        const isMath    = /math/i.test(subjectName);
+        const isSST     = /sst|social|history|geography|civics|economics|politics|contemporary/i.test(subjectName);
         const isEnglish = /english/i.test(subjectName);
         const isHindi   = /hindi/i.test(subjectName);
+        const hasUploadedSyllabus = !!session.syllabus_from_upload;
 
+        // ── ENGLISH CBSE PATTERN ─────────────────────────────
+        // Official CBSE English paper: Section A Reading, Section B Writing,
+        // Section C Grammar, Section D Literature. Marks: 20+20+20+20 = 80.
+        const englishSections = `
+SECTION A — READING [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q1  Unseen Passage 1 — Discursive/Factual [10 marks]
+  • 1 passage (~350–400 words)
+  • Q1(a) Multiple Choice Questions — 5 MCQs × 1 mark = 5 marks
+  • Q1(b) Short answer questions — 3 questions × 1 mark + 1 question × 2 marks = 5 marks
+
+Q2  Unseen Passage 2 — Literary/Poem extract [10 marks]
+  • 1 passage or poem extract (~200–250 words)
+  • Q2(a) Multiple Choice Questions — 5 MCQs × 1 mark = 5 marks
+  • Q2(b) Short answer questions — 3 questions × 1 mark + 1 question × 2 marks = 5 marks
+
+SECTION B — WRITING SKILLS [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q3  Notice Writing [4 marks]
+  • Write a notice for a school event or announcement (50–80 words)
+  • Follow standard notice format: Name of institution, Date, Title, Body, Issued by
+
+Q4  Paragraph Writing OR Dialogue Writing [4 marks]
+  • Either: write a descriptive/reflective paragraph (100–120 words)
+  • Or: write a dialogue between two people on a given situation (8–10 exchanges)
+
+Q5  Formal / Informal Letter [6 marks]
+  • Write a formal letter (complaint / request / application) OR informal letter to friend
+  • 150–180 words, correct format mandatory
+
+Q6  Long Composition — Article / Story / Speech [6 marks]
+  • Write an article OR story OR speech on a given topic
+  • 150–200 words
+  • Marks: Content 3 + Expression/Format 3
+
+SECTION C — GRAMMAR [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q7  Gap Filling — Tenses / Modals / Subject-Verb Concord [4 marks]
+  • 4 sentences with blanks, fill with correct form
+  • Test: simple present, past, future, modals (can/could/should/must/will/would)
+
+Q8  Editing — Identify and correct errors [4 marks]
+  • 8 lines of a passage, one error per line (spelling/grammar/word choice)
+  • Error types: articles, prepositions, tense, concord, reported speech forms
+
+Q9  Sentence Transformation [4 marks]
+  • 4 sentences to rewrite as directed:
+      → Active to Passive (and vice versa)
+      → Direct to Indirect speech (and vice versa)
+      → Combine sentences using clauses
+      → Degree of comparison transformation
+
+Q10  Sentence Reordering [4 marks]
+  • 4 sets of jumbled words — rewrite as meaningful sentences
+  • Mix: simple, compound, complex sentences
+
+Q11  Clauses / Reported Speech / Determiners [4 marks]
+  • Identify clause type, OR complete with correct determiner, OR convert reported speech
+  • 4 questions × 1 mark
+
+SECTION D — LITERATURE [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q12  Extract-based MCQs — Prose [5 marks]
+  • 1 passage extract from a prose lesson in the syllabus above
+  • 5 MCQs × 1 mark = 5 marks
+  • Test: context, inference, vocabulary, tone
+
+Q13  Extract-based MCQs — Poetry [5 marks]
+  • 1 stanza extract from a poem in the syllabus above
+  • 5 MCQs × 1 mark = 5 marks
+  • Test: meaning, figure of speech, mood, theme
+
+Q14  Short Answer Questions — Prose & Poetry [6 marks]
+  • 3 questions × 2 marks = 6 marks
+  • Each from a DIFFERENT prose/poetry text in the syllabus above
+  • Expected: 2–3 sentences per answer
+
+Q15  Long Answer Question — Literature [4 marks]
+  • 1 question from prose OR drama in the syllabus above
+  • Character analysis OR theme OR comparison between two texts
+  • Expected: 8–10 sentences (paragraph format)
+        `.trim();
+
+        // ── HINDI CBSE PATTERN ───────────────────────────────
+        const hindiSections = `
+SECTION A — READING [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q1  Unseen Passage 1 [10 marks] — 5 MCQs + 5 short answers
+Q2  Unseen Passage 2 [10 marks] — poem or prose extract — 5 MCQs + 5 short answers
+
+SECTION B — WRITING [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q3  Patra Lekhan — औपचारिक या अनौपचारिक पत्र [5 marks]
+Q4  Anuched Lekhan — अनुच्छेद लेखन [5 marks]
+Q5  Suchna Lekhan / Sandesh Lekhan [5 marks]
+Q6  Vigyapan Lekhan OR Dialogue Writing [5 marks]
+
+SECTION C — GRAMMAR [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q7   Ling Badlo (Gender) [3 marks]
+Q8   Vachan Badlo (Number) [3 marks]
+Q9   Kaal Badlo (Tense transformation) [3 marks]
+Q10  Muhavare / Lokoktiyan (Idioms / Proverbs) [3 marks]
+Q11  Sandhi / Samas [4 marks]
+Q12  Vilom / Paryayvachi Shabd [4 marks]
+
+SECTION D — LITERATURE [20 Marks]
+━━━━━━━━━━━━━━━━━━
+Q13  Gadyansh (Prose extract MCQs) [5 marks] — from syllabus above
+Q14  Kavyansh (Poetry extract MCQs) [5 marks] — from syllabus above
+Q15  Short Answer Questions — Prose [5 marks] — 3 questions × 1-2 marks
+Q16  Long Answer Question — Theme/Character [5 marks]
+        `.trim();
+
+        // ── MATH CBSE PATTERN ────────────────────────────────
         const mathSections = `
 SECTION A — Multiple Choice Questions [20 Marks]
 ━━━━━━━━━━━━━━━━━━
 Q1–Q20  MCQs [1 mark each]
   • 4 options per MCQ: a) b) c) d)
-  • Cover all chapters — at least 1 question per chapter
+  • Cover ALL chapters — at least 1 question per chapter
   • Mix: conceptual, calculation-based, graph/figure based
   • Include HOTs: application, pattern recognition, reasoning
 
@@ -1220,6 +1336,7 @@ Q31–Q36  [5 marks each]
   • Full working + reasoning expected
         `.trim();
 
+        // ── STANDARD (Science / SST / etc.) ─────────────────
         const standardSections = `
 SECTION A — Objective Type [20 Marks]
 ━━━━━━━━━━━━━━━━━━
@@ -1256,19 +1373,45 @@ Q31–Q36  [5 marks each]
   • Every answer must require all four components:
       Introduction/context → Main explanation → Example/evidence → Conclusion
   • Must include:
-      → At least 1 diagram or map-based question
-        (student describes what to draw with correct labels)
       → At least 1 case study or real-world application question
       → At least 1 compare/contrast of two major concepts
         ${isSST  ? "→ At least 1 map-pointing question (rivers/mountains/states/places)" : ""}
         ${!isMath && !isSST ? "→ At least 1 question requiring a labelled diagram" : ""}
         `.trim();
 
+        // Pick the correct section structure
+        let sectionBlocks: string;
+        if (isMath) {
+          sectionBlocks = mathSections;
+        } else if (isEnglish) {
+          sectionBlocks = englishSections;
+        } else if (isHindi) {
+          sectionBlocks = hindiSections;
+        } else {
+          sectionBlocks = standardSections;
+        }
+
+        // For uploaded syllabuses, build an explicit coverage enforcement block
+        const uploadCoverageNote = hasUploadedSyllabus ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  CRITICAL — UPLOADED SYLLABUS COVERAGE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The syllabus above was uploaded by the student. It contains MULTIPLE sections/topics.
+You MUST generate questions from EVERY section listed — not just Literature.
+Specifically for English:
+  • Reading section topics → generate the Reading comprehension questions
+  • Writing Skills topics → generate the Writing section questions
+  • Grammar topics → generate the Grammar section questions
+  • Literature topics → generate the Literature section questions
+If the uploaded syllabus lists Section A / B / C / D or similar groupings,
+map them to the corresponding sections in the paper structure above.
+Do NOT skip any section. Do NOT generate only Literature questions.
+        `.trim() : "";
+
         const paperPrompt = `
 You are an official CBSE Board question paper setter for Class ${cls}.
-THIS PAPER IS FOR: **${subjectName}** — ALL questions must be about ${subjectName} topics ONLY.
-Do NOT mix in questions from any other subject. If the syllabus mentions other subjects, IGNORE them.
-Generate a COMPLETE, FULL-LENGTH question paper STRICTLY based on the syllabus/chapters listed below.
+THIS PAPER IS FOR: **${subjectName}** — follow the exact CBSE pattern for this subject.
+Generate a COMPLETE, FULL-LENGTH question paper STRICTLY based on the syllabus listed below.
 Output the paper ONLY. No commentary outside the paper itself.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1284,29 +1427,28 @@ General Instructions:
 1. All questions are compulsory.
 2. Marks for each question are shown in [ ].
 3. Write well-structured answers.
-4. For diagrams/maps — describe clearly what you would draw with correct labels.
-5. Use standard language for all definitions.
+4. For Writing section — follow the standard format for each writing type.
+5. For Grammar — write complete corrected sentences.
+6. For Literature — refer to the texts listed in the syllabus only.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-AUTHORISED SYLLABUS FOR THIS PAPER (questions must come from ONLY these):
+AUTHORISED SYLLABUS FOR THIS PAPER (use ONLY these topics):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${chapterList}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${isMath ? mathSections : standardSections}
+${uploadCoverageNote ? uploadCoverageNote + "\n\n" : ""}${sectionBlocks}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MANDATORY QUALITY & BALANCE RULES:
+MANDATORY RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Distribute questions EVENLY — every topic/chapter must appear at least once
-• No single chapter should contribute more than 3 questions total
-• Difficulty balance across full paper: 30% easy | 50% medium | 20% hard (HOTs)
-• ALL questions strictly from the syllabus listed above — nothing outside
-• Questions must be original, board-exam quality — not copied from sample papers
-• Number ALL questions continuously Q1 through Q36
-• Each question must clearly show: [1 mark] / [3 marks] / [5 marks]
-• Do NOT repeat topics or question types within the same section
-• For SST: spread questions proportionally across History, Geography, Civics, Economics
+• ALL sections of the paper must be present and complete
+• Every topic/chapter in the syllabus must appear at least once across all sections
+• No section may be skipped or left empty
+• Difficulty: 30% easy | 50% medium | 20% hard (HOTs)
+• Questions must be original, board-exam quality
+• Each question must clearly show its marks in [ ]
+• Do NOT repeat topics within the same section
         `.trim();
 
         const paper = await callAI(paperPrompt, [
