@@ -702,21 +702,54 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // ── Guard: "start" typed — only use confirmedSubject, NEVER scan history ──
+      // ── Guard: "start" typed — resolve subject from DB, confirmedSubject, or ask ──
       //
-      // BUG FIX: The previous version scanned chat history for a fallback subject,
+      // BUG FIX 1: The previous version scanned chat history for a fallback subject,
       // which caused it to pick up subjects from PREVIOUS sessions still in the
       // frontend's history array (e.g. "Social Science"), then overwrite a correctly
-      // saved session (e.g. an uploaded English syllabus) in Supabase — resulting in
-      // the wrong subject's paper being generated.
+      // saved session (e.g. an uploaded English syllabus) in Supabase.
       //
-      // Fix: Remove the history scan entirely. Only trust `confirmedSubject` (an
-      // explicit signal from the frontend). If absent and status is still IDLE,
-      // ask the student to specify a subject — which is always the safe behaviour.
+      // BUG FIX 2: When a syllabus is uploaded, the DB session is saved as READY.
+      // But if the frontend sends "start" without a sessionId (or with a different
+      // key), getSession returns null and the fallback session is constructed as IDLE.
+      // Fix: always re-fetch from DB by BOTH possible key formats and use whichever
+      // is READY, so an uploaded syllabus session is never lost.
       if (isStart(lower) && session.status === "IDLE") {
         const confirmedSubject: string = body?.confirmedSubject || "";
 
-        if (confirmedSubject) {
+        // ── Secondary DB lookup: try alternate key formats in case sessionId
+        //    was not sent consistently between the upload and start requests ──
+        let readySession: ExamSession | null = null;
+
+        // Try ALL possible alternate keys for this student
+        const altKeys: string[] = [];
+        if (student?.sessionId && `${name || "anon"}_${cls}` !== key) {
+          // We used sessionId as key; also try name_class
+          altKeys.push(`${name || "anon"}_${cls}`);
+        }
+        if (!student?.sessionId && name) {
+          // We used name_class; also try any sessionId-based key isn't applicable here
+          // But try anon variant in case name was blank on upload
+          if (key !== `anon_${cls}`) altKeys.push(`anon_${cls}`);
+        }
+
+        for (const ak of altKeys) {
+          const candidate = await getSession(ak);
+          if (candidate?.status === "READY") {
+            readySession = candidate;
+            break;
+          }
+        }
+
+        if (readySession) {
+          // Found a READY session under the alternate key — adopt it
+          session.status               = "READY";
+          session.subject              = readySession.subject;
+          session.subject_request      = readySession.subject_request;
+          session.syllabus_from_upload = readySession.syllabus_from_upload;
+          session.session_key          = readySession.session_key;
+          // Fall through to isStart + READY paper generation below
+        } else if (confirmedSubject) {
           const { subjectName } = getChaptersForSubject(confirmedSubject, cls);
           const recoveredSession: ExamSession = {
             session_key:     key,
@@ -940,7 +973,7 @@ Study Tip   : [one actionable improvement tip based on the syllabus used]
           console.error("Failed to save exam_attempt:", dbErr);
         }
 
-        await deleteSession(key);
+        await deleteSession(session.session_key || key);
 
         return NextResponse.json({
           reply:          evaluation,
@@ -1225,7 +1258,7 @@ MANDATORY QUALITY & BALANCE RULES:
         const startTime         = Date.now();
 
         const activeSession: ExamSession = {
-          session_key:          key,
+          session_key:          session.session_key || key,
           status:               "IN_EXAM",
           subject_request:      session.subject_request,
           subject:              subjectName,
