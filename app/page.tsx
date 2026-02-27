@@ -50,7 +50,6 @@ export default function HomePage() {
   return (
     <div className={orbitron.className} style={{ minHeight: "100vh" }}>
 
-      {/* ── LANDING SCREEN ── */}
       <AnimatePresence>
         {!entered && (
           <motion.div
@@ -64,7 +63,6 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Stars */}
             {Array.from({ length: 60 }).map((_, i) => (
               <div
                 key={i}
@@ -81,7 +79,6 @@ export default function HomePage() {
               />
             ))}
 
-            {/* SUN glow */}
             <div
               style={{
                 position: "absolute",
@@ -91,13 +88,11 @@ export default function HomePage() {
                 width: 520,
                 height: 520,
                 borderRadius: "50%",
-                background:
-                  "radial-gradient(circle, rgba(255,215,120,1) 0%, rgba(255,180,60,0.6) 50%, transparent 80%)",
+                background: "radial-gradient(circle, rgba(255,215,120,1) 0%, rgba(255,180,60,0.6) 50%, transparent 80%)",
                 filter: "blur(12px)",
               }}
             />
 
-            {/* TITLE */}
             <div
               style={{
                 position: "absolute",
@@ -117,8 +112,7 @@ export default function HomePage() {
                   fontWeight: 700,
                   color: "#FFD700",
                   margin: 0,
-                  textShadow:
-                    "0 0 20px rgba(255,215,120,0.9), 0 0 40px rgba(255,200,80,0.6), 0 2px 6px rgba(0,0,0,0.8)",
+                  textShadow: "0 0 20px rgba(255,215,120,0.9), 0 0 40px rgba(255,200,80,0.6), 0 2px 6px rgba(0,0,0,0.8)",
                 }}
               >
                 SHAURI
@@ -154,10 +148,11 @@ export default function HomePage() {
               </motion.p>
             </div>
 
-            {/* MOUNTAIN */}
+            {/* MOUNTAIN — occupies bottom 42% of screen, peak at top of that = 58% from top of viewport */}
             <svg
               viewBox="0 0 1440 800"
-              style={{ position: "absolute", bottom: 0, width: "100%" }}
+              preserveAspectRatio="none"
+              style={{ position: "absolute", bottom: 0, width: "100%", height: "42%" }}
             >
               <path
                 d="M0,730 C400,650 700,600 720,500 C740,600 1000,650 1440,720 L1440,800 L0,800 Z"
@@ -165,12 +160,13 @@ export default function HomePage() {
               />
             </svg>
 
-            {/* CTA BUTTON — positioned at mountain peak */}
+            {/* Button — peak of svg is at y=500/800=62.5% from top of svg.
+                svg height=42vh. Peak from bottom of viewport = 42vh*(1-0.625) = 42*0.375 = 15.75vh */}
             <motion.div
               onClick={handleEnter}
               style={{
                 position: "absolute",
-                bottom: "28%",
+                bottom: "15.5%",
                 left: "50%",
                 transform: "translateX(-50%)",
                 cursor: "pointer",
@@ -193,9 +189,9 @@ export default function HomePage() {
                   letterSpacing: "0.35em",
                   fontSize: "clamp(10px, 2vw, 14px)",
                   whiteSpace: "nowrap",
+                  background: "rgba(0,8,20,0.5)",
                 }}
               >
-                {/* Running gold shimmer */}
                 <motion.div
                   style={{
                     position: "absolute",
@@ -203,8 +199,7 @@ export default function HomePage() {
                     left: "-100%",
                     width: "100%",
                     height: "100%",
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(255,215,0,0.6), transparent)",
+                    background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.6), transparent)",
                   }}
                   animate={{ left: ["-100%", "100%"] }}
                   transition={{ duration: 2, repeat: Infinity }}
@@ -213,7 +208,6 @@ export default function HomePage() {
               </div>
             </motion.div>
 
-            {/* WARP flash */}
             {warp && (
               <motion.div
                 style={{ position: "absolute", inset: 0, background: "white", zIndex: 20 }}
@@ -226,7 +220,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ── ACCESS / LOGIN SCREEN ── */}
       {entered && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -242,6 +235,11 @@ export default function HomePage() {
             padding: "24px 16px",
           }}
         >
+          <style>{`
+            .shauri-select { appearance: none; -webkit-appearance: none; }
+            .shauri-select option { color: #0f172a !important; background: #f8fafc; }
+          `}</style>
+
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -260,7 +258,7 @@ export default function HomePage() {
             >
               SHAURI
             </h1>
-            <p style={{ marginTop: 10, opacity: 0.65, fontSize: 13, letterSpacing: "0.05em" }}>
+            <p style={{ marginTop: 10, opacity: 0.65, fontSize: 13, letterSpacing: "0.05em", fontFamily: "inherit" }}>
               CBSE-Aligned. Adaptive. Built for your growth.
             </p>
           </motion.div>
@@ -272,7 +270,7 @@ export default function HomePage() {
             transition={{ delay: 0.25, duration: 0.5 }}
             style={{ display: "grid", gap: 14, width: "100%", maxWidth: 300 }}
           >
-            {/* Name */}
+            {/* Student Name */}
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -280,22 +278,31 @@ export default function HomePage() {
               style={inputStyle}
             />
 
-            {/* Class */}
+            {/* Class dropdown — custom chevron, dark text always */}
             <select
               value={studentClass}
               onChange={(e) => setStudentClass(e.target.value)}
-              style={{ ...inputStyle, color: studentClass ? "#0f172a" : "#94a3b8" }}
+              className="shauri-select"
+              style={{
+                ...inputStyle,
+                color: studentClass ? "#0f172a" : "#94a3b8",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b8a060' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 14px center",
+                paddingRight: 36,
+              }}
             >
-              <option value="" disabled>Select Class</option>
+              <option value="" disabled style={{ color: "#94a3b8" }}>Select Class</option>
               {[6, 7, 8, 9, 10, 11, 12].map((c) => (
                 <option key={c} value={`Class ${c}`}>Class {c}</option>
               ))}
             </select>
 
-            {/* Access Code — star masked */}
+            {/* Access Code — star masked, font consistent, only size/spacing changes on entry */}
             <input
               type="text"
               inputMode="numeric"
+              autoComplete="off"
               value={"★".repeat(code.length)}
               onChange={(e) => {
                 if (e.target.value.length < code.length) {
@@ -306,11 +313,15 @@ export default function HomePage() {
                 }
               }}
               placeholder="Access Code"
-              style={{ ...inputStyle, letterSpacing: "0.4em", fontSize: 18 }}
+              style={{
+                ...inputStyle,
+                letterSpacing: code.length > 0 ? "0.45em" : "0.02em",
+                fontSize: code.length > 0 ? 18 : 14,
+              }}
             />
 
             {error && (
-              <p style={{ color: "#dc2626", fontSize: 12, margin: 0, textAlign: "center", letterSpacing: "0.04em" }}>
+              <p style={{ color: "#dc2626", fontSize: 12, margin: 0, textAlign: "center", letterSpacing: "0.04em", fontFamily: "inherit" }}>
                 {error}
               </p>
             )}
@@ -336,7 +347,7 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            style={{ marginTop: 36, opacity: 0.55, fontSize: 12, textAlign: "center", letterSpacing: "0.04em" }}
+            style={{ marginTop: 36, opacity: 0.55, fontSize: 12, textAlign: "center", letterSpacing: "0.04em", fontFamily: "inherit" }}
           >
             Discipline today builds the confidence of tomorrow.
           </motion.p>
@@ -357,6 +368,7 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
   fontFamily: "inherit",
   boxSizing: "border-box",
+  letterSpacing: "0.02em",
 };
 
 const buttonStyle: React.CSSProperties = {

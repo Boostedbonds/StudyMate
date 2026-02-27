@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Header from "../components/Header";
-import { supabaseClient as supabase } from "../lib/supabase-client";
 
 type ExamAttempt = {
   id: string;
@@ -107,116 +106,94 @@ function StatCard({ icon, label, value, sub, subColor, accent }: {
   );
 }
 
+// ── Load from localStorage as fallback ───────────────────────
+function loadLocalAttempts(): ExamAttempt[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem("shauri_exam_attempts");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
 export default function ProgressPage() {
   const [attempts, setAttempts]     = useState<ExamAttempt[]>([]);
   const [aiSummary, setAiSummary]   = useState("");
   const [aiLoading, setAiLoading]   = useState(false);
-  const [syncState, setSyncState]   = useState<SyncState>("loading"); // start as loading, not idle
+  const [syncState, setSyncState]   = useState<SyncState>("loading");
   const [errorMsg, setErrorMsg]     = useState("");
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ── Fetch from Supabase OR localStorage ─────────────────────
+  // ── Fetch via /api/progress (server-side Supabase) ───────────
   const fetchAttempts = useCallback(async () => {
     setSyncState("loading");
     setErrorMsg("");
 
-    // Step 1: Load from localStorage immediately so there's something to show
-    let localAttempts: ExamAttempt[] = [];
-    try {
-      const local = localStorage.getItem("shauri_exam_attempts");
-      if (local) {
-        const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          localAttempts = parsed;
-          setAttempts(parsed);
-        }
-      }
-    } catch {}
+    // Always load local data first so UI isn't blank while fetching
+    const local = loadLocalAttempts();
+    if (local.length > 0) setAttempts(local);
 
-    // Step 2: Read student info
+    // Get student info
     let name = "", cls = "";
     try {
-      const stored = localStorage.getItem("shauri_student");
-      if (stored) {
-        const s = JSON.parse(stored);
-        name = s?.name?.trim() || "";
-        cls  = s?.class?.trim() || "";
-      }
+      const s = JSON.parse(localStorage.getItem("shauri_student") || "null");
+      name = s?.name?.trim() || "";
+      cls  = s?.class?.trim() || "";
     } catch {}
 
-    // Step 3: If no student info, we're offline/guest — done
+    // No student info — just use local
     if (!name || !cls) {
-      setSyncState(localAttempts.length > 0 ? "success" : "idle");
-      if (localAttempts.length > 0) setLastSynced(new Date());
+      setSyncState(local.length > 0 ? "success" : "idle");
+      if (local.length > 0) setLastSynced(new Date());
       return;
     }
 
-    // Step 4: Fetch from Supabase
+    // Fetch from server
     try {
-      const { data, error } = await supabase
-        .from("exam_attempts")
-        .select("*")
-        .eq("student_name", name)
-        .eq("class", cls)
-        .order("created_at", { ascending: true });
+      const res = await fetch(
+        `/api/progress?name=${encodeURIComponent(name)}&class=${encodeURIComponent(cls)}`
+      );
 
-      if (error) throw new Error(error.message);
-
-      if (!data || data.length === 0) {
-        // Server has no records — keep local data if any
-        setSyncState("success");
-        setLastSynced(new Date());
-        return;
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
       }
 
-      // Step 5: Map — try all known column name variants for score
-      const mapped: ExamAttempt[] = data.map((d: any) => {
-        const rawScore =
-          d.percentage    ??
-          d.score_percent ??
-          d.scorePercent  ??
-          d.score         ??
-          null;
-        const scoreNum = rawScore !== null ? Number(rawScore) : undefined;
+      const data = await res.json();
 
-        return {
-          id: d.id,
-          date: d.created_at,
-          mode: "examiner" as const,
-          subject: d.subject || "General",
-          chapters: Array.isArray(d.chapters) ? d.chapters : [],
-          timeTakenSeconds: d.time_taken_seconds ?? 0,
-          rawAnswerText: "",
-          scorePercent: scoreNum !== undefined && !isNaN(scoreNum) ? scoreNum : undefined,
-        };
-      });
-
-      // Filter out any rows where scorePercent is still undefined (no score column matched)
-      const validMapped = mapped.filter(a => typeof a.scorePercent === "number");
-
-      if (validMapped.length === 0 && localAttempts.length > 0) {
-        // Supabase returned rows but none had a parseable score
-        // Keep local data and warn in console
-        console.warn("[Progress] Supabase rows found but no score column matched. Columns present:", Object.keys(data[0]));
-        setSyncState("success");
-        setLastSynced(new Date());
-        return;
+      if (data.error) {
+        throw new Error(data.error);
       }
 
-      setAttempts(validMapped.length > 0 ? validMapped : localAttempts);
+      const remote: ExamAttempt[] = data.attempts || [];
+
+      if (remote.length > 0) {
+        // Merge: remote takes priority, keep any local-only entries not yet synced
+        const remoteIds = new Set(remote.map((a) => a.id));
+        const localOnly = local.filter((a) => !remoteIds.has(a.id));
+        const merged = [...remote, ...localOnly].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        setAttempts(merged);
+      } else if (local.length > 0) {
+        // No remote data yet — use local
+        setAttempts(local);
+      }
+
       setSyncState("success");
       setLastSynced(new Date());
 
     } catch (err: any) {
-      console.error("[Progress] Supabase fetch error:", err);
-      setErrorMsg(err?.message || "Network error. Showing local data.");
+      console.error("[Progress] fetch error:", err);
+      setErrorMsg(err?.message || "Could not sync. Showing local data.");
       setSyncState("error");
-      // Don't wipe local attempts
+      // Keep whatever is already shown (local data)
     }
   }, []);
 
-  // ── Fetch on mount ───────────────────────────────────────────
   useEffect(() => {
     fetchAttempts();
   }, [fetchAttempts]);
@@ -356,7 +333,7 @@ export default function ProgressPage() {
           )}
           {syncState === "error" && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 16px", fontSize: 13, color: "#b91c1c" }}>
-              <span>⚠️ {errorMsg || "Could not load from server. Showing local data."}</span>
+              <span>⚠️ {errorMsg || "Could not sync. Showing local data."}</span>
               <button onClick={fetchAttempts} style={{ ...btnBase, background: "#dc2626", padding: "6px 14px", fontSize: 12 }}>Retry</button>
             </div>
           )}
