@@ -14,12 +14,19 @@ const ACCESS_CODE = "0330";
 export default function HomePage() {
   const [entered, setEntered] = useState(false);
   const [warp, setWarp] = useState(false);
+  const [showBtn, setShowBtn] = useState(false);
   const [name, setName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const board = "CBSE";
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Reveal button after delay
+  useState(() => {
+    const t = setTimeout(() => setShowBtn(true), 1100);
+    return () => clearTimeout(t);
+  });
 
   function handleEnter() {
     setWarp(true);
@@ -56,6 +63,42 @@ export default function HomePage() {
 
   return (
     <div className={orbitron.className} style={{ minHeight: "100vh" }}>
+      <style>{`
+        @keyframes shimmer {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+        .ascent-btn {
+          position: relative;
+          padding: 14px 42px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,215,0,0.5);
+          overflow: hidden;
+          color: #FFD700;
+          letter-spacing: 0.35em;
+          font-size: clamp(10px, 2vw, 14px);
+          white-space: nowrap;
+          background: rgba(0,8,20,0.55);
+          cursor: pointer;
+          font-family: inherit;
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .ascent-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 0 18px rgba(255,215,0,0.35);
+        }
+        .ascent-btn:active { transform: scale(0.97); }
+        .ascent-btn::after {
+          content: '';
+          position: absolute;
+          top: 0; left: -60%;
+          width: 40%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,215,0,0.55), transparent);
+          animation: shimmer 2.2s infinite;
+        }
+        .shauri-select { appearance: none; -webkit-appearance: none; }
+        .shauri-select option { color: #0f172a !important; background: #f8fafc; }
+      `}</style>
 
       <AnimatePresence>
         {!entered && (
@@ -139,79 +182,63 @@ export default function HomePage() {
             </div>
 
             {/*
-              KEY FIX: wrap SVG in a relative-positioned div that matches the SVG dimensions.
-              The button is then absolutely positioned inside this wrapper at
-              left: 50% (= x=720/1440) and top: 37.5% (= y=300/800).
-              This is pure CSS — no JS measurement, no viewport offset issues.
+              THE DEFINITIVE FIX:
+              The SVG covers the full viewport (position: absolute, inset: 0).
+              The viewBox is 1440×800. The mountain peak is at (720, 300) —
+              exactly the center horizontally.
+              We place a <foreignObject> centered on that exact point.
+              Because the SVG itself is full-width/height, the foreignObject
+              coordinates map 1:1 with the viewBox percentage, so there are
+              zero offset issues regardless of scrollbar or device.
             */}
-            <div style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              width: "100%",
-              height: "55%",
-              // no overflow:hidden so button can visually protrude upward if needed
-            }}>
-              <svg
-                viewBox="0 0 1440 800"
-                preserveAspectRatio="none"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  display: "block",
-                }}
-              >
-                <path
-                  d="M0,750 C360,680 660,580 720,300 C780,580 1080,680 1440,750 L1440,800 L0,800 Z"
-                  fill="black"
-                />
-              </svg>
+            <svg
+              viewBox="0 0 1440 800"
+              preserveAspectRatio="none"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                overflow: "visible",
+              }}
+            >
+              {/* Mountain — bottom 55% of the 800-unit viewBox = starts at y=360 */}
+              {/* We clip by only drawing the mountain in the lower portion */}
+              <path
+                d="M0,750 C360,680 660,580 720,300 C780,580 1080,680 1440,750 L1440,800 L0,800 Z"
+                fill="black"
+              />
 
-              {/* Button sits exactly at the SVG peak: 50% from left, 37.5% from top */}
-              <motion.div
-                onClick={handleEnter}
-                style={{
-                  position: "absolute",
-                  top: "37.5%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  cursor: "pointer",
-                  zIndex: 10,
-                  width: "max-content",
-                }}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.1, duration: 0.6 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <div style={{
-                  position: "relative",
-                  padding: "14px 42px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,215,0,0.5)",
-                  overflow: "hidden",
-                  color: "#FFD700",
-                  letterSpacing: "0.35em",
-                  fontSize: "clamp(10px, 2vw, 14px)",
-                  whiteSpace: "nowrap",
-                  background: "rgba(0,8,20,0.55)",
-                }}>
-                  <motion.div
-                    style={{
-                      position: "absolute", top: 0, left: "-100%",
-                      width: "100%", height: "100%",
-                      background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.6), transparent)",
-                    }}
-                    animate={{ left: ["-100%", "100%"] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                  BEGIN THE ASCENT
+              {/*
+                foreignObject centered on peak (720, 300).
+                Width 400 viewBox units, height 80 viewBox units.
+                x = 720 - 200 = 520, y = 300 - 40 = 260
+                The button inside uses margin:auto + text-align:center to self-center.
+              */}
+              <foreignObject x="520" y="260" width="400" height="80" style={{ overflow: "visible" }}>
+                <div
+                  // @ts-ignore
+                  xmlns="http://www.w3.org/1999/xhtml"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: showBtn ? 1 : 0,
+                    transform: showBtn ? "translateY(0)" : "translateY(10px)",
+                    transition: "opacity 0.6s ease, transform 0.6s ease",
+                  }}
+                >
+                  <button
+                    className={`ascent-btn ${orbitron.className}`}
+                    onClick={handleEnter}
+                  >
+                    BEGIN THE ASCENT
+                  </button>
                 </div>
-              </motion.div>
-            </div>
+              </foreignObject>
+            </svg>
 
             {warp && (
               <motion.div
@@ -241,11 +268,6 @@ export default function HomePage() {
             padding: "24px 16px",
           }}
         >
-          <style>{`
-            .shauri-select { appearance: none; -webkit-appearance: none; }
-            .shauri-select option { color: #0f172a !important; background: #f8fafc; }
-          `}</style>
-
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
