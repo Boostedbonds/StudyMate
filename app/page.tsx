@@ -196,7 +196,7 @@ export default function HomePage() {
                 onClick={handleEnter}
                 style={{
                   position: "absolute",
-                  top: "37.5%",
+                  top: "49%",
                   left: "50%",
                   transform: "translate(-50%, -50%)",
                   cursor: "pointer",
