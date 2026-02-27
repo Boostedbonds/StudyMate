@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Orbitron } from "next/font/google";
 
@@ -14,12 +14,28 @@ const ACCESS_CODE = "0330";
 export default function HomePage() {
   const [entered, setEntered] = useState(false);
   const [warp, setWarp] = useState(false);
-
   const [name, setName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const board = "CBSE";
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+
+  // We'll measure the SVG's bounding rect and compute the peak's screen Y
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [peakTop, setPeakTop] = useState<number | null>(null);
+
+  useEffect(() => {
+    function measure() {
+      if (!svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      // Peak in viewBox: y=300 out of 800 → 37.5% from top of SVG element
+      const peakY = rect.top + rect.height * (300 / 800);
+      setPeakTop(peakY);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [entered]); // re-measure if screen changes
 
   function handleEnter() {
     setWarp(true);
@@ -29,7 +45,6 @@ export default function HomePage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
     if (!name.trim()) return setError("Please enter student name");
     if (!studentClass) return setError("Please select class");
     if (code !== ACCESS_CODE) return setError("Invalid access code");
@@ -39,11 +54,9 @@ export default function HomePage() {
       class: studentClass.replace("Class ", ""),
       board,
     };
-
     localStorage.setItem("shauri_student", JSON.stringify(studentContext));
     document.cookie = `shauri_name=${encodeURIComponent(studentContext.name)}; path=/`;
     document.cookie = `shauri_class=${encodeURIComponent(studentContext.class)}; path=/`;
-
     window.location.href = "/modes";
   }
 
@@ -65,47 +78,39 @@ export default function HomePage() {
           >
             {/* Stars */}
             {Array.from({ length: 60 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  position: "absolute",
-                  width: i % 5 === 0 ? 2 : 1,
-                  height: i % 5 === 0 ? 2 : 1,
-                  borderRadius: "50%",
-                  background: "white",
-                  opacity: Math.random() * 0.7 + 0.2,
-                  top: `${Math.random() * 60}%`,
-                  left: `${Math.random() * 100}%`,
-                }}
-              />
+              <div key={i} style={{
+                position: "absolute",
+                width: i % 5 === 0 ? 2 : 1,
+                height: i % 5 === 0 ? 2 : 1,
+                borderRadius: "50%",
+                background: "white",
+                opacity: Math.random() * 0.7 + 0.2,
+                top: `${Math.random() * 60}%`,
+                left: `${Math.random() * 100}%`,
+              }} />
             ))}
 
-            {/* Sun glow — centred at 30% from top */}
-            <div
-              style={{
-                position: "absolute",
-                top: "30%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                width: 520,
-                height: 520,
-                borderRadius: "50%",
-                background:
-                  "radial-gradient(circle, rgba(255,215,120,1) 0%, rgba(255,180,60,0.6) 50%, transparent 80%)",
-                filter: "blur(12px)",
-              }}
-            />
+            {/* Sun glow */}
+            <div style={{
+              position: "absolute",
+              top: "30%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: 520,
+              height: 520,
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(255,215,120,1) 0%, rgba(255,180,60,0.6) 50%, transparent 80%)",
+              filter: "blur(12px)",
+            }} />
 
-            {/* Title — centred on the sun */}
-            <div
-              style={{
-                position: "absolute",
-                top: "30%",
-                width: "100%",
-                textAlign: "center",
-                transform: "translateY(-50%)",
-              }}
-            >
+            {/* Title */}
+            <div style={{
+              position: "absolute",
+              top: "30%",
+              width: "100%",
+              textAlign: "center",
+              transform: "translateY(-50%)",
+            }}>
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -116,87 +121,56 @@ export default function HomePage() {
                   fontWeight: 700,
                   color: "#FFD700",
                   margin: 0,
-                  textShadow:
-                    "0 0 20px rgba(255,215,120,0.9), 0 0 40px rgba(255,200,80,0.6), 0 2px 6px rgba(0,0,0,0.8)",
+                  textShadow: "0 0 20px rgba(255,215,120,0.9), 0 0 40px rgba(255,200,80,0.6), 0 2px 6px rgba(0,0,0,0.8)",
                 }}
               >
                 SHAURI
               </motion.h1>
-
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.7, duration: 0.6 }}
-                style={{
-                  marginTop: 12,
-                  color: "#ffffff",
-                  letterSpacing: "0.15em",
-                  fontSize: "clamp(10px, 2vw, 14px)",
-                }}
+                style={{ marginTop: 12, color: "#ffffff", letterSpacing: "0.15em", fontSize: "clamp(10px, 2vw, 14px)" }}
               >
                 THE COURAGE TO MASTER THE FUTURE
               </motion.p>
-
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.9, duration: 0.6 }}
-                style={{
-                  color: "#FFD700",
-                  fontSize: "clamp(9px, 1.5vw, 13px)",
-                  letterSpacing: "0.15em",
-                  marginTop: 6,
-                  whiteSpace: "nowrap",
-                }}
+                style={{ color: "#FFD700", fontSize: "clamp(9px, 1.5vw, 13px)", letterSpacing: "0.15em", marginTop: 6, whiteSpace: "nowrap" }}
               >
                 CBSE-ALIGNED ADAPTIVE LEARNING PLATFORM
               </motion.p>
             </div>
 
-            {/*
-              MOUNTAIN + BUTTON WRAPPER
-              The mountain SVG and button live inside the same absolutely-positioned
-              container so the button can be positioned relative to the SVG peak
-              without any vh arithmetic.
-
-              Container: bottom-aligned, full width, height = 55% of viewport.
-              SVG viewBox 1440×800, peak at x=720 y=300 → 37.5% from top of SVG.
-              So peak from TOP of this container = 55vh × 37.5% = 20.625vh ≈ 20.6%
-              → button top = 20.6% of container — expressed as percentage inside container.
-            */}
-            <div
+            {/* Mountain SVG — full width, bottom-anchored, tall */}
+            <svg
+              ref={svgRef}
+              viewBox="0 0 1440 800"
+              preserveAspectRatio="none"
               style={{
                 position: "absolute",
                 bottom: 0,
                 left: 0,
-                right: 0,
-                height: "55%",   /* container height */
+                width: "100%",
+                height: "55%",
               }}
             >
-              {/* Mountain */}
-              <svg
-                viewBox="0 0 1440 800"
-                preserveAspectRatio="none"
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-              >
-                {/* Peak at y=300 = 37.5% from top of viewBox */}
-                <path
-                  d="M0,750 C360,680 660,580 720,300 C780,580 1080,680 1440,750 L1440,800 L0,800 Z"
-                  fill="black"
-                />
-              </svg>
+              {/* Peak tip at x=720 y=300 */}
+              <path
+                d="M0,750 C360,680 660,580 720,300 C780,580 1080,680 1440,750 L1440,800 L0,800 Z"
+                fill="black"
+              />
+            </svg>
 
-              {/*
-                Button: position relative to container.
-                Peak is at 37.5% from top of container.
-                Centre button on the peak → top: 37.5%, transform centres it.
-                Nudge up by ~24px (half button height) so tip points into button.
-              */}
+            {/* Button — pinned to measured peak position */}
+            {peakTop !== null && (
               <motion.div
                 onClick={handleEnter}
                 style={{
-                  position: "absolute",
-                  top: "49%",
+                  position: "fixed",
+                  top: peakTop,
                   left: "50%",
                   transform: "translate(-50%, -50%)",
                   cursor: "pointer",
@@ -208,29 +182,23 @@ export default function HomePage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.97 }}
               >
-                <div
-                  style={{
-                    position: "relative",
-                    padding: "14px 42px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,215,0,0.5)",
-                    overflow: "hidden",
-                    color: "#FFD700",
-                    letterSpacing: "0.35em",
-                    fontSize: "clamp(10px, 2vw, 14px)",
-                    whiteSpace: "nowrap",
-                    background: "rgba(0,8,20,0.55)",
-                  }}
-                >
+                <div style={{
+                  position: "relative",
+                  padding: "14px 42px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,215,0,0.5)",
+                  overflow: "hidden",
+                  color: "#FFD700",
+                  letterSpacing: "0.35em",
+                  fontSize: "clamp(10px, 2vw, 14px)",
+                  whiteSpace: "nowrap",
+                  background: "rgba(0,8,20,0.55)",
+                }}>
                   <motion.div
                     style={{
-                      position: "absolute",
-                      top: 0,
-                      left: "-100%",
-                      width: "100%",
-                      height: "100%",
-                      background:
-                        "linear-gradient(90deg, transparent, rgba(255,215,0,0.6), transparent)",
+                      position: "absolute", top: 0, left: "-100%",
+                      width: "100%", height: "100%",
+                      background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.6), transparent)",
                     }}
                     animate={{ left: ["-100%", "100%"] }}
                     transition={{ duration: 2, repeat: Infinity }}
@@ -238,7 +206,7 @@ export default function HomePage() {
                   BEGIN THE ASCENT
                 </div>
               </motion.div>
-            </div>
+            )}
 
             {warp && (
               <motion.div
@@ -279,18 +247,14 @@ export default function HomePage() {
             transition={{ delay: 0.15, duration: 0.5 }}
             style={{ textAlign: "center", marginBottom: 32 }}
           >
-            <h1
-              style={{
-                fontSize: "clamp(32px, 8vw, 52px)",
-                letterSpacing: "0.4em",
-                fontWeight: 700,
-                color: "#0f172a",
-                margin: 0,
-                textShadow: "0 2px 4px rgba(0,0,0,0.15)",
-              }}
-            >
-              SHAURI
-            </h1>
+            <h1 style={{
+              fontSize: "clamp(32px, 8vw, 52px)",
+              letterSpacing: "0.4em",
+              fontWeight: 700,
+              color: "#0f172a",
+              margin: 0,
+              textShadow: "0 2px 4px rgba(0,0,0,0.15)",
+            }}>SHAURI</h1>
             <p style={{ marginTop: 10, opacity: 0.65, fontSize: 13, letterSpacing: "0.05em", fontFamily: "inherit" }}>
               CBSE-Aligned. Adaptive. Built for your growth.
             </p>
@@ -360,14 +324,7 @@ export default function HomePage() {
               type="submit"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
-              style={{
-                ...buttonStyle,
-                fontFamily: "inherit",
-                letterSpacing: "0.2em",
-                fontSize: 13,
-                fontWeight: 700,
-                marginTop: 4,
-              }}
+              style={{ ...buttonStyle, fontFamily: "inherit", letterSpacing: "0.2em", fontSize: 13, fontWeight: 700, marginTop: 4 }}
             >
               STEP IN
             </motion.button>
