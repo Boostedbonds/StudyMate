@@ -114,8 +114,6 @@ async function deleteSession(key: string): Promise<void> {
 }
 
 // Fallback lookup: find ANY session for this student by name+class.
-// Used when the session_key computed at "start" time differs from the key
-// used when the syllabus was uploaded (sessionId vs name_class mismatch).
 async function getSessionByStudent(
   studentName: string,
   studentClass: string,
@@ -123,8 +121,6 @@ async function getSessionByStudent(
 ): Promise<ExamSession | null> {
   if (!studentName) return null;
   try {
-    // IMPORTANT: all filters must come BEFORE .order() and .limit()
-    // otherwise Supabase query builder ignores them
     let query = supabase
       .from("exam_sessions")
       .select("*")
@@ -173,10 +169,7 @@ function getChaptersForSubject(
         chapterList:
           (s.science.chapters as ChapterEntry[])
             .map((c) => `Chapter ${c.number}: ${c.name}`)
-            .join("\n") +
-          `\n\nNOTE FOR AI: If any chapter relevant to this subject is missing ` +
-          `from the list above, retrieve it from the official NCERT Class 9 ` +
-          `Science syllabus (ncert.nic.in) and include it.`,
+            .join("\n"),
       };
     }
 
@@ -186,10 +179,7 @@ function getChaptersForSubject(
         chapterList:
           (s.mathematics.chapters as ChapterEntry[])
             .map((c) => `Chapter ${c.number}: ${c.name}`)
-            .join("\n") +
-          `\n\nNOTE FOR AI: If any chapter relevant to this subject is missing ` +
-          `from the list above, retrieve it from the official NCERT Class 9 ` +
-          `Mathematics syllabus (ncert.nic.in) and include it.`,
+            .join("\n"),
       };
     }
 
@@ -199,10 +189,7 @@ function getChaptersForSubject(
         chapterList:
           (s.social_science.history.chapters as ChapterEntry[])
             .map((c) => `Chapter ${c.number}: ${c.name}`)
-            .join("\n") +
-          `\n\nNOTE FOR AI: If any chapter relevant to Class 9 History is missing ` +
-          `above, retrieve it from the official NCERT Class 9 ` +
-          `"India and the Contemporary World – I" syllabus and include it.`,
+            .join("\n"),
       };
     }
 
@@ -212,10 +199,7 @@ function getChaptersForSubject(
         chapterList:
           (s.social_science.geography.chapters as ChapterEntry[])
             .map((c) => `Chapter ${c.number}: ${c.name}`)
-            .join("\n") +
-          `\n\nNOTE FOR AI: If any chapter relevant to Class 9 Geography is missing ` +
-          `above, retrieve it from the official NCERT Class 9 ` +
-          `"Contemporary India – I" syllabus and include it.`,
+            .join("\n"),
       };
     }
 
@@ -225,10 +209,7 @@ function getChaptersForSubject(
         chapterList:
           (s.social_science.civics.chapters as ChapterEntry[])
             .map((c) => `Chapter ${c.number}: ${c.name}`)
-            .join("\n") +
-          `\n\nNOTE FOR AI: If any chapter relevant to Class 9 Civics is missing ` +
-          `above, retrieve it from the official NCERT Class 9 ` +
-          `"Democratic Politics – I" syllabus and include it.`,
+            .join("\n"),
       };
     }
 
@@ -238,9 +219,7 @@ function getChaptersForSubject(
         chapterList:
           (s.social_science.economics.chapters as ChapterEntry[])
             .map((c) => `Chapter ${c.number}: ${c.name}`)
-            .join("\n") +
-          `\n\nNOTE FOR AI: If any chapter relevant to Class 9 Economics is missing ` +
-          `above, retrieve it from the official NCERT Class 9 Economics syllabus and include it.`,
+            .join("\n"),
       };
     }
 
@@ -260,9 +239,7 @@ function getChaptersForSubject(
       return {
         subjectName: "Social Science (SST)",
         chapterList:
-          `HISTORY:\n${hist}\n\nGEOGRAPHY:\n${geo}\n\nCIVICS:\n${civ}\n\nECONOMICS:\n${eco}` +
-          `\n\nNOTE FOR AI: If any chapter from any SST sub-subject is missing above, ` +
-          `retrieve it from the official NCERT Class 9 SST syllabus (ncert.nic.in) and include it.`,
+          `HISTORY:\n${hist}\n\nGEOGRAPHY:\n${geo}\n\nCIVICS:\n${civ}\n\nECONOMICS:\n${eco}`,
       };
     }
 
@@ -273,10 +250,7 @@ function getChaptersForSubject(
         chapterList:
           `FICTION:\n${fiction.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}\n\n` +
           `POETRY:\n${poetry.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}\n\n` +
-          `DRAMA:\n${drama.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}` +
-          `\n\nNOTE FOR AI: If any lesson/poem/drama from Class 9 English Beehive or ` +
-          `Moments (supplementary reader) is missing above, retrieve it from the ` +
-          `official NCERT syllabus and include it.`,
+          `DRAMA:\n${drama.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}`,
       };
     }
 
@@ -286,10 +260,7 @@ function getChaptersForSubject(
         subjectName: "Hindi",
         chapterList:
           `PROSE & POETRY:\n${prose_poetry.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}\n\n` +
-          `GRAMMAR:\n${grammar.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}` +
-          `\n\nNOTE FOR AI: If any lesson or grammar topic from Class 9 Hindi ` +
-          `(Sanchayan/Sparsh) is missing above, retrieve it from the official ` +
-          `NCERT syllabus and include it.`,
+          `GRAMMAR:\n${grammar.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}`,
       };
     }
 
@@ -297,7 +268,7 @@ function getChaptersForSubject(
       subjectName: subjectRequest,
       chapterList:
         `INSTRUCTION FOR AI: Retrieve the complete official NCERT Class 9 ` +
-        `${subjectRequest} chapter list from ncert.nic.in and use those exact ` +
+        `${subjectRequest} chapter list from your training knowledge and use those exact ` +
         `chapters. Do NOT invent chapters.`,
     };
   }
@@ -439,13 +410,15 @@ ${safe}
   const subjectMatch = extracted.match(/^SUBJECT:\s*(.+)$/im);
   const subjectName  = subjectMatch ? subjectMatch[1].trim() : "Custom Subject";
 
+  // FIX 3: Strongly worded chapterList header — no "retrieve from NCERT" escape hatch
   return {
     subjectName,
     chapterList:
-      `SOURCE: Student-uploaded syllabus document\n` +
-      `IMPORTANT FOR AI: Generate the exam paper ONLY from the topics listed below.\n` +
-      `Do NOT add NCERT chapters not present in this list.\n` +
-      `Do NOT skip any topic listed here — every topic must appear at least once.\n\n` +
+      `🚨 UPLOADED SYLLABUS — STRICT BOUNDARY 🚨\n` +
+      `ABSOLUTE RULE: Every question on this paper must come EXCLUSIVELY from the topics listed below.\n` +
+      `A topic NOT listed below does NOT exist for this exam — do NOT include it under any circumstance.\n` +
+      `Do NOT use standard NCERT chapters that are absent from this list.\n` +
+      `Do NOT "fill gaps" with NCERT content. If fewer topics are listed, write more questions per listed topic.\n\n` +
       extracted,
     raw: extracted,
   };
@@ -489,6 +462,8 @@ async function handleSyllabusUpload(
     student_board:        board,
   };
   await saveSession(updatedSession);
+
+  console.log("[SYLLABUS UPLOAD] Saved session:", key, "subject:", subjectName, "syllabusLength:", chapterList.length);
 
   const isOverride = currentStatus === "READY";
   return NextResponse.json({
@@ -599,7 +574,6 @@ export async function POST(req: NextRequest) {
     const rawUploadedText: string = body?.uploadedText || "";
     const uploadType: "syllabus" | "answer" | undefined = body?.uploadType ?? undefined;
 
-    // ── NEW: read subject hint and lang from frontend (used by oral/teacher/practice/revision) ──
     const bodySubject: string = body?.subject || "";
     const bodyLang: string    = body?.lang    || "";
 
@@ -664,7 +638,6 @@ export async function POST(req: NextRequest) {
           reply: `Hi ${greetName}! 👋 I'm Shauri, your ${board} teacher${cls ? ` for Class ${cls}` : ""}. What would you like to learn today?`,
         });
       }
-      // Prepend student context as a user→assistant exchange so AI always knows who it's talking to
       const contextPrimer: ChatMessage[] = name ? [
         { role: "user", content: `My name is ${name}${cls ? `, I'm in Class ${cls}` : ""}${board ? `, ${board} board` : ""}.` },
         { role: "assistant", content: `Got it! I'll call you ${name}${cls ? ` (Class ${cls})` : ""}. How can I help you today?` },
@@ -675,7 +648,6 @@ export async function POST(req: NextRequest) {
         { role: "user", content: message },
       ];
 
-      // Detect Hindi for teacher mode
       const teacherConversationText = [...history, { role: "user", content: message }]
         .map((m) => m.content).join(" ");
       const isHindiTeacher =
@@ -790,12 +762,13 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        console.log("[isStart+IDLE] readySession found:", readySession?.session_key, readySession?.subject);
+        console.log("[isStart+IDLE] readySession found:", readySession?.session_key, readySession?.subject, "hasSyllabus:", !!readySession?.syllabus_from_upload);
 
         if (readySession) {
           session.status               = "READY";
           session.subject              = readySession.subject;
           session.subject_request      = readySession.subject_request;
+          // FIX 2: Explicitly carry over syllabus_from_upload during key-mismatch recovery
           session.syllabus_from_upload = readySession.syllabus_from_upload;
           session.session_key          = readySession.session_key;
         } else if (confirmedSubject) {
@@ -1311,10 +1284,21 @@ Study Tip   : [one specific, actionable improvement — e.g. "Practise Assertion
         let subjectName: string;
         let chapterList: string;
 
+        // FIX 1 & 2: Explicit logging + guaranteed carry-over of uploaded syllabus
+        console.log("[EXAM START DEBUG]", {
+          sessionKey: session.session_key,
+          status: session.status,
+          subject: session.subject,
+          hasSyllabusUpload: !!session.syllabus_from_upload,
+          syllabusLength: session.syllabus_from_upload?.length || 0,
+        });
+
         if (session.syllabus_from_upload) {
           subjectName = session.subject || "Custom Subject";
           chapterList = session.syllabus_from_upload;
+          console.log("[START] Using UPLOADED syllabus for:", subjectName, "| length:", chapterList.length);
         } else {
+          console.log("[START] No uploaded syllabus — using NCERT default for:", session.subject_request);
           const resolved = getChaptersForSubject(
             session.subject_request || "",
             cls
@@ -1529,14 +1513,25 @@ Q36–Q38  [4 marks each] — real-life scenario with 3 sub-questions
           sectionBlocks = standardSections;
         }
 
+        // FIX 2 & 4: Dramatically strengthened uploaded syllabus enforcement block
         const uploadCoverageNote = hasUploadedSyllabus ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  CRITICAL — UPLOADED SYLLABUS COVERAGE:
+🚨 ABSOLUTE RESTRICTION — UPLOADED SYLLABUS IS THE ONLY SOURCE 🚨
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The syllabus above was uploaded by the student and may cover specific topics only.
-Generate questions ONLY from the topics listed — but still follow the section structure below.
-Map every uploaded topic to its correct section (Reading/Writing/Grammar/Literature for English, etc.).
-Do NOT skip any section. Do NOT generate only from one part of the syllabus.
+This student uploaded their own custom syllabus. The topics listed above under
+"UPLOADED SYLLABUS — STRICT BOUNDARY" are the ONLY topics that exist for this exam.
+
+YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:
+1. Every single question on this paper MUST come from a topic explicitly listed in the uploaded syllabus above.
+2. Do NOT include any chapter, unit, or concept that is absent from the uploaded list — even if it appears in the standard NCERT textbook.
+3. Do NOT use NCERT or CBSE default chapter lists. The uploaded list replaces them entirely.
+4. Do NOT "fill in" missing sections with NCERT chapters to meet question counts. Instead, write additional questions on the listed topics.
+5. If a section (e.g. Case Study) seems hard to fill with the given topics — still do it using only the listed topics.
+6. Before writing each question, mentally verify: "Is this topic in the uploaded list?" If NO → do not write that question.
+
+SELF-CHECK BEFORE FINALISING THE PAPER:
+For every question you have written, confirm its topic appears word-for-word or by clear implication in the uploaded syllabus list.
+Delete and replace any question whose topic is NOT in the uploaded list.
         `.trim() : "";
 
         const paperPrompt = `
@@ -1567,9 +1562,10 @@ General Instructions:
 6. For map questions — use a pencil and label clearly.` : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-AUTHORISED SYLLABUS — Questions from ONLY these topics:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${chapterList}
+${hasUploadedSyllabus
+  ? `AUTHORISED TOPICS — ALL QUESTIONS MUST COME FROM THIS LIST ONLY:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${chapterList}`
+  : `AUTHORISED SYLLABUS — Questions from ONLY these topics:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${chapterList}`
+}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${uploadCoverageNote ? uploadCoverageNote + "\n\n" : ""}${sectionBlocks}
@@ -1579,8 +1575,12 @@ QUALITY RULES — NON-NEGOTIABLE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Generate ALL sections completely — no section may be missing or short
 • Total marks MUST add up to exactly 80
-• Every chapter/topic in the syllabus must appear in at least one question
-• No chapter appears more than 3 times across the entire paper
+• ${hasUploadedSyllabus
+    ? "Every question MUST come from the uploaded topic list above — NO EXCEPTIONS"
+    : "Every chapter/topic in the syllabus must appear in at least one question"}
+• ${hasUploadedSyllabus
+    ? "Do NOT add any NCERT default chapters absent from the uploaded list"
+    : "No chapter appears more than 3 times across the entire paper"}
 • Difficulty spread: 30% easy | 50% medium | 20% HOTs
 • Questions must be original CBSE board-quality — not copied from textbooks
 • Every question must show its mark value in [brackets]
@@ -1590,7 +1590,7 @@ QUALITY RULES — NON-NEGOTIABLE:
         const paper = await callAI(paperPrompt, [
           {
             role: "user",
-            content: `Generate CBSE Board paper: ${board} Class ${cls} — ${subjectName}`,
+            content: `Generate CBSE Board paper: ${board} Class ${cls} — ${subjectName}${hasUploadedSyllabus ? " (UPLOADED SYLLABUS — use ONLY listed topics)" : ""}`,
           },
         ]);
 
@@ -1638,7 +1638,7 @@ QUALITY RULES — NON-NEGOTIABLE:
     }
 
     // ═══════════════════════════════════════════════════════════
-    // ORAL MODE  ← PATCHED: Hindi detection from bodySubject + bodyLang + Devanagari
+    // ORAL MODE
     // ═══════════════════════════════════════════════════════════
     if (mode === "oral") {
       const contextPrimer: ChatMessage[] = name ? [
@@ -1651,11 +1651,6 @@ QUALITY RULES — NON-NEGOTIABLE:
         { role: "user", content: message },
       ];
 
-      // Detect Hindi subject from 4 signals:
-      // 1. bodySubject sent by frontend ("hindi")
-      // 2. bodyLang sent by frontend ("hi-IN")
-      // 3. Devanagari characters in the message or history (5+ chars = confident Hindi)
-      // 4. The word "hindi" anywhere in the conversation
       const oralConversationText = [...history, { role: "user", content: message }]
         .map((m) => m.content).join(" ");
 
