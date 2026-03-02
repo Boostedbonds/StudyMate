@@ -1225,6 +1225,16 @@ Study Tip   : [one specific, actionable improvement — e.g. "Practise Assertion
           return handleSyllabusUpload(uploadedText, cls, board, key, name, "READY");
         }
 
+        // Guard: if user types submit/done/finish before the exam has started, guide them
+        if (isSubmit(lower)) {
+          return NextResponse.json({
+            reply:
+              `⚠️ Your exam hasn't started yet${callName} — there's nothing to submit.\n\n` +
+              `Subject is set to **${session.subject}**.\n\n` +
+              `Type **start** when you're ready to begin. ⏱️ Timer starts immediately.`,
+          });
+        }
+
         return NextResponse.json({
           reply:
             `📚 Subject is set to **${session.subject}**.\n\n` +
@@ -1240,6 +1250,22 @@ Study Tip   : [one specific, actionable improvement — e.g. "Practise Assertion
 
         if (isSyllabusUpload && uploadedText.length > 30) {
           return handleSyllabusUpload(uploadedText, cls, board, key, name, "IDLE");
+        }
+
+        // GUARD: never treat exam command words as subject names.
+        // If the user types submit/done/finish/start/answers when IDLE,
+        // they are confused about state — guide them instead of creating a
+        // bogus session named "SUBMIT" or "ANSWERS".
+        const isExamCommand = /^(submit|done|finish|finished|start|answers?)\s*$/i.test(message.trim());
+        if (isExamCommand) {
+          return NextResponse.json({
+            reply:
+              `⚠️ It looks like you typed **"${message.trim()}"** — but there's no active exam session${callName}.\n\n` +
+              `To get started, please tell me the **subject** you want to be tested on:\n` +
+              `Science | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n` +
+              `📎 Or **upload your syllabus** as a PDF or image for a custom paper.\n\n` +
+              `Once a subject is set, type **start** to begin — the timer starts immediately.`,
+          });
         }
 
         if (!message.trim()) {
