@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChatInput from "../components/ChatInput";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -13,7 +13,6 @@ function saveMessages(msgs: Message[]) {
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(msgs.slice(-MAX_SAVED_MSGS)));
   } catch {}
 }
-
 function clearSavedMessages() {
   try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {}
 }
@@ -50,9 +49,7 @@ function Bubble({ m }: { m: Message }) {
 
 // ─── Resume Banner ────────────────────────────────────────────
 function ResumeBanner({ subject, elapsed, onDismiss }: {
-  subject?: string;
-  elapsed: string;
-  onDismiss: () => void;
+  subject?: string; elapsed: string; onDismiss: () => void;
 }) {
   return (
     <div style={{
@@ -60,43 +57,32 @@ function ResumeBanner({ subject, elapsed, onDismiss }: {
       flexWrap: "wrap", gap: 8,
       background: "#fefce8", border: "1.5px solid #fde047",
       borderRadius: 10, padding: "10px 16px",
-      fontSize: 13, color: "#713f12",
-      flexShrink: 0,
+      fontSize: 13, color: "#713f12", flexShrink: 0,
     }}>
       <span>
         ⚡ <strong>Exam restored</strong>
         {subject ? ` — ${subject}` : ""}
         {" · "}Time already elapsed: <strong>{elapsed}</strong>
-        {" · "}Your question paper is on the right. Keep writing!
+        {" · "}Keep writing and type <strong>submit</strong> when done!
       </span>
-      <button
-        onClick={onDismiss}
-        style={{
-          background: "#fde047", border: "none", borderRadius: 6,
-          padding: "4px 12px", fontSize: 12, fontWeight: 700,
-          cursor: "pointer", color: "#713f12", flexShrink: 0,
-        }}
-      >
-        Got it ✕
-      </button>
+      <button onClick={onDismiss} style={{
+        background: "#fde047", border: "none", borderRadius: 6,
+        padding: "4px 12px", fontSize: 12, fontWeight: 700,
+        cursor: "pointer", color: "#713f12", flexShrink: 0,
+      }}>Got it ✕</button>
     </div>
   );
 }
 
 // ─── CBSE Print ──────────────────────────────────────────────
-function printCBSEPaper({
-  paperContent, subject, studentName, studentClass,
-}: {
-  paperContent: string; subject?: string;
-  studentName?: string; studentClass?: string;
+function printCBSEPaper({ paperContent, subject, studentName, studentClass }: {
+  paperContent: string; subject?: string; studentName?: string; studentClass?: string;
 }) {
   const marksMatch  = paperContent.match(/(?:Maximum\s*Marks|Total(?:\s*Marks)?)\s*[:\-]\s*(\d+)/i);
   const timeMatch   = paperContent.match(/(?:Time\s*Allowed|Duration)\s*[:\-]\s*([^\n]+)/i);
   const totalMarks  = marksMatch ? marksMatch[1] : "80";
   const timeAllowed = timeMatch  ? timeMatch[1].trim() : "3 Hours";
-
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
   const formattedBody = paperContent.split("\n").map(line => {
     const escaped = esc(line);
     const bolded  = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -132,11 +118,7 @@ function printCBSEPaper({
     .spacer{height:8px}
     .answer-space{margin-top:20px;border-top:2px solid #000;padding-top:10px}
     .footer{text-align:center;margin-top:18px;font-size:10pt;color:#444;border-top:1px solid #ccc;padding-top:6px}
-    @media print{
-      body{padding:0}.page{width:100%;padding:15mm 18mm 18mm}
-      .no-print{display:none!important}
-      @page{size:A4;margin:0}
-    }
+    @media print{body{padding:0}.page{width:100%;padding:15mm 18mm 18mm}.no-print{display:none!important}@page{size:A4;margin:0}}
   </style>
 </head>
 <body>
@@ -207,12 +189,14 @@ function createNewSessionId(): string {
   return sid;
 }
 
+// FIX 6: Only extract confirmed subject from the very first "subject set" reply.
+// Never extract from upload responses (which set subject to the detected name),
+// because that stale value then overrides later subject choices.
 function extractConfirmedSubject(reply: string): string {
-  const uploadMatch = reply.match(/\*?\*?Subject detected[:\*\s]+\*?\*?([^\n*]+)/i);
-  if (uploadMatch) return uploadMatch[1].trim();
-  const paperMatch = reply.match(/question paper for[:\s]*\n?\*?\*?([^\n*]+)/i)
-    || reply.match(/for:\s*\n\*?\*?([^\n*]+)/i);
+  // Match "I'll prepare a strict CBSE Board question paper for: **SubjectName — Class X**"
+  const paperMatch = reply.match(/question paper for[:\s]*\n?\*?\*?([^\n*—]+)/i);
   if (paperMatch) return paperMatch[1].trim();
+  // Match "Subject is set to **X**" — only from READY state replies, not upload confirmations
   const setMatch = reply.match(/[Ss]ubject is set to\s+\*?\*?([^\n*]+)/i);
   if (setMatch) return setMatch[1].trim();
   return "";
@@ -225,26 +209,27 @@ export default function ExaminerPage() {
     return `${n} 📋 I'm your strict CBSE Examiner.\n\nTell me the **subject** you want to be tested on:\nScience | Mathematics | SST | History | Geography | Civics | Economics | English | Hindi\n\n📎 **OR** upload your **syllabus as a PDF or image** and I'll generate a paper exactly based on it.\n\n⏱️ Your timer starts the moment you type **start**.`;
   }
 
-  const [messages, setMessages]       = useState<Message[]>([]);
-  const [paperContent, setPaper]      = useState("");
-  const [examStarted, setStarted]     = useState(false);
-  const [elapsedSec, setElapsed]      = useState(0);
-  const [isLoading, setLoading]       = useState(false);
+  const [messages, setMessages]             = useState<Message[]>([]);
+  const [paperContent, setPaper]            = useState("");
+  const [examStarted, setStarted]           = useState(false);
+  const [elapsedSec, setElapsed]            = useState(0);
+  const [isLoading, setLoading]             = useState(false);
   const [showResumeBanner, setResumeBanner] = useState(false);
-  const [examMeta, setMeta]           = useState<{
+  const [examMeta, setMeta]                 = useState<{
     examEnded?: boolean; marksObtained?: number; totalMarks?: number;
     percentage?: number; timeTaken?: string; subject?: string;
   }>({});
   const [studentName,  setStudentName]  = useState("");
   const [studentClass, setStudentClass] = useState("");
 
+  // FIX 6: confirmedSubjectRef is cleared after exam starts AND after upload detection
   const confirmedSubjectRef = useRef<string>("");
-  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTsRef  = useRef<number | null>(null);
-  const elapsedRef  = useRef(0);
-  const sendingRef  = useRef(false);
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const msgsRef     = useRef<Message[]>([]);
+  const timerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTsRef   = useRef<number | null>(null);
+  const elapsedRef   = useRef(0);
+  const sendingRef   = useRef(false);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const msgsRef      = useRef<Message[]>([]);
   const sessionIdRef = useRef<string>("");
 
   useEffect(() => { msgsRef.current = messages; }, [messages]);
@@ -258,11 +243,8 @@ export default function ExaminerPage() {
 
   // ── On mount: always start fresh ─────────────────────────────
   useEffect(() => {
-    // Clear all previous exam state so we always get a clean screen
     clearSavedMessages();
     localStorage.removeItem("shauri_exam_sid");
-
-    // Create a fresh session ID
     sessionIdRef.current = createNewSessionId();
 
     let name = "", cls = "";
@@ -274,7 +256,6 @@ export default function ExaminerPage() {
       setStudentClass(cls);
     } catch {}
 
-    // Always show fresh greeting
     setMessages([{ role: "assistant", content: buildGreeting(name) }]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -311,6 +292,7 @@ export default function ExaminerPage() {
     let student: any = null;
     try { student = JSON.parse(localStorage.getItem("shauri_student") || "null"); } catch {}
 
+    // Strip display-only labels from history before sending to backend
     const history = msgsRef.current
       .slice(1)
       .map(m => ({
@@ -326,16 +308,18 @@ export default function ExaminerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: "examiner",
-          message: text,
+          mode:         "examiner",
+          message:      text,
           uploadedText: uploadedText || "",
-          uploadType: uploadType || null,
+          // FIX 7: Always send a string, never null — backend uses ?? undefined
+          uploadType:   uploadType || "",
           history,
+          // FIX 6: Only send confirmedSubject if it's actually needed (non-empty)
           confirmedSubject: confirmedSubjectRef.current || undefined,
           student: {
-            name: student?.name || "",
-            class: student?.class || "",
-            board: student?.board || "CBSE",
+            name:      student?.name  || "",
+            class:     student?.class || "",
+            board:     student?.board || "CBSE",
             sessionId: sessionIdRef.current,
           },
         }),
@@ -344,38 +328,56 @@ export default function ExaminerPage() {
       const data = await res.json();
       const reply: string = data?.reply ?? "";
 
-      if (data?.resumeExam === true && typeof data.startTime === "number") {
-        startTimer(data.startTime);
+      // ── FIX 3 & 4: Handle resumeExam FIRST, with safe startTime check ──
+      // Backend always sets started_at when exam begins, but guard against
+      // it being stored as string in Supabase (BIGINT can come back as string)
+      if (data?.resumeExam === true) {
+        const ts = typeof data.startTime === "number"
+          ? data.startTime
+          : typeof data.startTime === "string"
+            ? parseInt(data.startTime)
+            : null;
+
+        if (ts && !isNaN(ts)) {
+          startTimer(ts);
+        }
         setMeta(p => ({ ...p, subject: data.subject || p.subject }));
+        // FIX 4: Use questionPaper key for resume (not paper key)
         if (data.questionPaper) setPaper(data.questionPaper);
         if (reply) setMessages(p => [...p, { role: "assistant", content: reply }]);
         setResumeBanner(true);
         return;
       }
 
-      if (typeof data?.startTime === "number") {
+      // ── Exam just started: backend returns { reply, paper, startTime } ──
+      // FIX 1: Check data.paper explicitly — never fall back to reply for paper content
+      if (typeof data?.startTime === "number" && data?.paper) {
         startTimer(data.startTime);
-        const paper = data?.paper || reply;
-        const subj  = paper.match(/Subject\s*[:\|]\s*([^\n]+)/i);
-        setMeta(p => ({ ...p, subject: subj ? subj[1].trim() : data?.subject || p.subject }));
+        const paper = data.paper; // always use data.paper, never reply
+        // Extract subject from paper header for display
+        const subjMatch = paper.match(/Subject\s*[:\|]\s*([^\n]+)/i);
+        setMeta(p => ({ ...p, subject: subjMatch ? subjMatch[1].trim() : data?.subject || p.subject }));
         setPaper(paper);
+        // FIX 6: Clear confirmedSubject now that exam has started
         confirmedSubjectRef.current = "";
         setMessages(p => [...p, {
           role: "assistant",
-          content: reply || "✅ Paper ready! It's displayed on the right panel.\n\nWrite your answers in your notebook and type them here when done. Type **submit** to finish.",
+          content: reply || "✅ Paper ready! Displayed on the right. Write answers and type **submit** when done.",
         }]);
         return;
       }
 
+      // ── Exam evaluation complete ──
       if (data?.examEnded === true) {
         stopTimer();
         const taken = elapsedRef.current;
         setMessages(p => [...p, {
           role: "assistant",
-          content: reply + `\n\n⏱ Time taken: ${fmt(taken)}`,
+          content: reply + (reply.includes("Time taken") ? "" : `\n\n⏱ Time taken: ${fmt(taken)}`),
         }]);
         setMeta(p => ({
-          ...p, examEnded: true,
+          ...p,
+          examEnded:     true,
           marksObtained: data?.marksObtained ?? 0,
           totalMarks:    data?.totalMarks    ?? 0,
           percentage:    data?.percentage    ?? 0,
@@ -384,17 +386,25 @@ export default function ExaminerPage() {
         }));
         localStorage.removeItem("shauri_exam_sid");
         clearSavedMessages();
+        // FIX 6: Clear confirmedSubject on exam end
         confirmedSubjectRef.current = "";
         return;
       }
 
+      // ── Regular chat reply ──
       if (reply) {
-        const extracted = extractConfirmedSubject(reply);
-        if (extracted) confirmedSubjectRef.current = extracted;
+        // FIX 6: Only extract confirmed subject from subject-setting replies,
+        // NOT from upload confirmation replies (those contain "Subject detected:")
+        const isUploadConfirmation = reply.includes("Syllabus") && reply.includes("uploaded successfully");
+        if (!isUploadConfirmation) {
+          const extracted = extractConfirmedSubject(reply);
+          if (extracted) confirmedSubjectRef.current = extracted;
+        }
         setMessages(p => [...p, { role: "assistant", content: reply }]);
       }
 
-    } catch {
+    } catch (err) {
+      console.error("[callAPI] error:", err);
       setMessages(p => [...p, { role: "assistant", content: "⚠️ Network error. Please try again." }]);
     } finally {
       sendingRef.current = false;
@@ -405,11 +415,14 @@ export default function ExaminerPage() {
   async function handleSend(text: string, uploadedText?: string, uploadType?: "syllabus" | "answer") {
     if (!text.trim() && !uploadedText) return;
     if (sendingRef.current) return;
+
+    // Build display label for upload
     let display = text.trim();
     if (uploadedText) {
       const lbl = uploadType === "syllabus" ? "📋 [Syllabus uploaded]" : "📝 [Answer uploaded]";
       display = display ? `${display}\n\n${lbl}` : lbl;
     }
+
     setMessages(p => [...p, { role: "user", content: display }]);
     await callAPI(text, uploadedText, uploadType);
   }
@@ -425,7 +438,7 @@ export default function ExaminerPage() {
         .ex-split{flex:1;display:flex;overflow:hidden}
         .ex-chat{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:#f8fafc}
         .ex-paper{width:50%;overflow-y:auto;background:#fff;border-left:1.5px solid #e2e8f0;padding:24px 28px}
-        @media(max-width:699px){.ex-paper{display:none}.ex-chat{width:100%!important}}
+        @media(max-width:768px){.ex-paper{display:none!important}.ex-chat{width:100%!important;flex:1!important}}
         .print-btn:hover{background:#1d4ed8!important}
       `}</style>
 
@@ -493,16 +506,15 @@ export default function ExaminerPage() {
               }} />
               {examMeta.examEnded ? "Evaluation Complete" : examActive ? "Type your answers here" : "Examiner Chat"}
             </div>
+            {/* Mobile-only print button shown in sub-header */}
             {paperContent && (
               <button
-                className="print-btn"
+                className="print-btn mobile-print-btn"
                 onClick={() => printCBSEPaper({ paperContent, subject: examMeta.subject, studentName, studentClass })}
                 style={{
                   padding: "4px 10px", background: "#2563eb", color: "#fff",
                   border: "none", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer",
-                  display: "none",
                 }}
-                id="mobile-print-btn"
               >
                 🖨️ Print
               </button>
@@ -512,11 +524,7 @@ export default function ExaminerPage() {
           {/* Resume banner */}
           {showResumeBanner && (
             <div style={{ padding: "10px 14px", flexShrink: 0 }}>
-              <ResumeBanner
-                subject={examMeta.subject}
-                elapsed={elapsed}
-                onDismiss={() => setResumeBanner(false)}
-              />
+              <ResumeBanner subject={examMeta.subject} elapsed={elapsed} onDismiss={() => setResumeBanner(false)} />
             </div>
           )}
 
@@ -553,7 +561,7 @@ export default function ExaminerPage() {
           </div>
         </div>
 
-        {/* RIGHT — paper panel */}
+        {/* RIGHT — paper panel (desktop only) */}
         <div className="ex-paper">
           {paperContent ? (
             <>
@@ -589,12 +597,10 @@ export default function ExaminerPage() {
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
                     transition: "background 0.15s",
                   }}
-                  title="Print question paper or save as PDF"
                 >
                   🖨️ Print / Save PDF
                 </button>
               </div>
-
               <pre style={{
                 fontSize: 13, lineHeight: 1.95, color: "#0f172a",
                 fontFamily: "monospace", whiteSpace: "pre-wrap",
@@ -612,12 +618,6 @@ export default function ExaminerPage() {
           )}
         </div>
       </div>
-
-      <style>{`
-        @media(max-width:699px){
-          #mobile-print-btn { display: flex !important; }
-        }
-      `}</style>
     </div>
   );
 }
