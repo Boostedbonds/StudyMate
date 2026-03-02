@@ -120,33 +120,51 @@ async function getSessionByStudent(
   requiredStatus?: ExamSession["status"]
 ): Promise<ExamSession | null> {
   if (!studentName) return null;
-  try {
-    let query = supabase
-      .from("exam_sessions")
-      .select("*")
-      .eq("student_name", studentName)
-      .eq("student_class", studentClass);
 
-    if (requiredStatus) {
-      query = (query as any).eq("status", requiredStatus);
+  // Helper to run a query with optional status filter
+  async function runQuery(nameVal: string, classVal?: string): Promise<ExamSession | null> {
+    try {
+      let q = supabase
+        .from("exam_sessions")
+        .select("*")
+        .eq("student_name", nameVal);
+
+      // Only filter by class if we have one — avoids missing sessions saved with empty class
+      if (classVal) {
+        q = (q as any).eq("student_class", classVal);
+      }
+      if (requiredStatus) {
+        q = (q as any).eq("status", requiredStatus);
+      }
+
+      const { data, error } = await (q as any)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+
+      console.log("[getSessionByStudent]", { nameVal, classVal, requiredStatus, found: data?.length, error: error?.message });
+
+      if (error || !data || data.length === 0) return null;
+      return {
+        ...data[0],
+        answer_log: Array.isArray(data[0].answer_log) ? data[0].answer_log : [],
+      } as ExamSession;
+    } catch (e) {
+      console.error("[getSessionByStudent] threw:", e);
+      return null;
     }
-
-    const { data, error } = await (query as any)
-      .order("updated_at", { ascending: false })
-      .limit(1);
-
-    console.log("[getSessionByStudent]", { studentName, studentClass, requiredStatus, found: data?.length, error: error?.message });
-
-    if (error || !data || data.length === 0) return null;
-
-    return {
-      ...data[0],
-      answer_log: Array.isArray(data[0].answer_log) ? data[0].answer_log : [],
-    } as ExamSession;
-  } catch (e) {
-    console.error("[getSessionByStudent] threw:", e);
-    return null;
   }
+
+  // Try 1: exact name + class match
+  const r1 = await runQuery(studentName, studentClass);
+  if (r1) return r1;
+
+  // Try 2: name only (catches sessions saved when class was empty or different)
+  if (studentClass) {
+    const r2 = await runQuery(studentName);
+    if (r2) return r2;
+  }
+
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -680,13 +698,17 @@ export async function POST(req: NextRequest) {
       };
 
       // ── KEY-MISMATCH RECOVERY ──────────────────────────────
+      // Runs whenever primary key lookup returned IDLE (i.e. session not found by sessionId).
+      // Tries multiple strategies to find an existing READY/IN_EXAM/FAILED session.
       if (session.status === "IDLE") {
         let recovered: ExamSession | null = null;
 
+        // Strategy 1: name + class (or name-only fallback inside getSessionByStudent)
         if (name) {
           recovered = await getSessionByStudent(name, cls);
         }
 
+        // Strategy 2: try the classic name_class composite key
         if (!recovered || recovered.status === "IDLE") {
           const nameClassKey = `${name || "anon"}_${cls}`;
           if (nameClassKey !== key) {
@@ -695,8 +717,27 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Strategy 3: try name_x (when class was empty during upload)
+        if (!recovered || recovered.status === "IDLE") {
+          const nameXKey = `${name || "anon"}_x`;
+          if (nameXKey !== key) {
+            const byKey = await getSession(nameXKey);
+            if (byKey && byKey.status !== "IDLE") recovered = byKey;
+          }
+        }
+
+        // Strategy 4: try anon_class and anon_x if name is empty
+        if ((!recovered || recovered.status === "IDLE") && !name) {
+          for (const anonKey of [`anon_${cls}`, `anon_x`]) {
+            if (anonKey !== key) {
+              const byKey = await getSession(anonKey);
+              if (byKey && byKey.status !== "IDLE") { recovered = byKey; break; }
+            }
+          }
+        }
+
         if (recovered && recovered.status !== "IDLE") {
-          console.log("[KEY-MISMATCH] recovered session:", recovered.session_key, recovered.status);
+          console.log("[KEY-MISMATCH] recovered session:", recovered.session_key, recovered.status, "syllabus:", !!recovered.syllabus_from_upload);
           session = recovered;
         }
       }
@@ -750,7 +791,9 @@ export async function POST(req: NextRequest) {
       if (isStart(lower) && session.status === "IDLE") {
         const confirmedSubject: string = body?.confirmedSubject || "";
 
+        // Use same 4-strategy recovery as above — all strategies filter for READY status
         let readySession: ExamSession | null = null;
+
         if (name) {
           readySession = await getSessionByStudent(name, cls, "READY");
         }
@@ -761,6 +804,21 @@ export async function POST(req: NextRequest) {
             if (byKey?.status === "READY") readySession = byKey;
           }
         }
+        if (!readySession) {
+          const nameXKey = `${name || "anon"}_x`;
+          if (nameXKey !== key) {
+            const byKey = await getSession(nameXKey);
+            if (byKey?.status === "READY") readySession = byKey;
+          }
+        }
+        if (!readySession && !name) {
+          for (const anonKey of [`anon_${cls}`, `anon_x`]) {
+            if (anonKey !== key) {
+              const byKey = await getSession(anonKey);
+              if (byKey?.status === "READY") { readySession = byKey; break; }
+            }
+          }
+        }
 
         console.log("[isStart+IDLE] readySession found:", readySession?.session_key, readySession?.subject, "hasSyllabus:", !!readySession?.syllabus_from_upload);
 
@@ -768,7 +826,6 @@ export async function POST(req: NextRequest) {
           session.status               = "READY";
           session.subject              = readySession.subject;
           session.subject_request      = readySession.subject_request;
-          // FIX 2: Explicitly carry over syllabus_from_upload during key-mismatch recovery
           session.syllabus_from_upload = readySession.syllabus_from_upload;
           session.session_key          = readySession.session_key;
         } else if (confirmedSubject) {
